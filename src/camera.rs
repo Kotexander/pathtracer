@@ -1,5 +1,7 @@
 use crate::{math::vector3::*, ray::Ray};
 
+const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
+
 #[derive(Clone, Copy, Debug)]
 pub struct Camera {
     pos: Vector3,
@@ -12,8 +14,6 @@ impl Camera {
     pub fn new(ray: &Ray, vfov: f32) -> Self {
         let h = (vfov / 2.0).tan();
         let viewport = h * 2.0;
-
-        const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
         let h = cross(&UP, &ray.dir);
         let v = cross(&ray.dir, &h);

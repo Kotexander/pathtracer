@@ -1,6 +1,7 @@
 use crate::{camera::Camera, math::vector3::Vector3, ray::Ray};
 
 mod camera;
+mod image;
 mod math;
 mod ray;
 
