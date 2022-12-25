@@ -82,6 +82,17 @@ impl DivAssign<f32> for Vector3 {
     }
 }
 
+pub fn dot(lhs: &Vector3, rhs: &Vector3) -> f32 {
+    (lhs.x * rhs.x) + (lhs.y * rhs.y) + (lhs.z * rhs.z)
+}
+pub fn cross(lhs: &Vector3, rhs: &Vector3) -> Vector3 {
+    Vector3::new(
+        (lhs.y * rhs.z) - (lhs.z * rhs.y),
+        (lhs.z * rhs.x) - (lhs.x * rhs.z),
+        (lhs.x * rhs.y) - (lhs.y * rhs.x),
+    )
+}
+
 mod tests {
     use super::*;
 
@@ -114,5 +125,28 @@ mod tests {
         assert_eq!(v.normal(), Vector3::new(1.0, 0.0, 0.0));
         v.normalize();
         assert_eq!(v, Vector3::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn dot() {
+        let v1 = Vector3::new(1.0, 0.0, 0.0);
+        let v2 = Vector3::new(0.0, 1.0, 0.0);
+        let v3 = Vector3::new(-1.0, 0.0, 0.0);
+
+        assert_eq!(super::dot(&v1, &v1), 1.0);
+        assert_eq!(super::dot(&v1, &v2), 0.0);
+        assert_eq!(super::dot(&v1, &v3), -1.0);
+    }
+
+    #[test]
+    fn cross() {
+        let v1 = Vector3::new(0.0, 0.0, 1.0);
+        let v2 = Vector3::new(0.0, 1.0, 0.0);
+        assert_eq!(super::cross(&v1, &v2), Vector3::new(-1.0, 0.0, 0.0));
+        assert_eq!(super::cross(&v2, &v1), Vector3::new(1.0, 0.0, 0.0));
+
+        let v1 = Vector3::new(2.0, 3.0, 4.0);
+        let v2 = Vector3::new(5.0, 6.0, 7.0);
+        assert_eq!(super::cross(&v1, &v2), Vector3::new(-3.0, 6.0, -3.0));
     }
 }
