@@ -1,5 +1,6 @@
 use crate::math::vector3::Vector3;
 
+#[derive(Clone, Copy, Debug)]
 pub struct Ray {
     pub pos: Vector3,
     pub dir: Vector3,
