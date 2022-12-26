@@ -1,10 +1,17 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
+
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
 }
 impl Vector3 {
+    pub const ZERO: Self = Self::new(0.0, 0.0, 0.0);
+    pub const ONE: Self = Self::new(1.0, 1.0, 1.0);
+    pub const X: Self = Self::new(1.0, 0.0, 0.0);
+    pub const Y: Self = Self::new(0.0, 1.0, 0.0);
+    pub const Z: Self = Self::new(0.0, 0.0, 1.0);
+
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
@@ -49,6 +56,13 @@ impl SubAssign for Vector3 {
         self.x -= rhs.x;
         self.y -= rhs.y;
         self.z -= rhs.z;
+    }
+}
+impl Neg for Vector3 {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self::new(-self.x, -self.y, -self.z)
     }
 }
 impl Mul<f32> for Vector3 {
@@ -129,9 +143,9 @@ mod tests {
 
     #[test]
     fn dot() {
-        let v1 = Vector3::new(1.0, 0.0, 0.0);
-        let v2 = Vector3::new(0.0, 1.0, 0.0);
-        let v3 = Vector3::new(-1.0, 0.0, 0.0);
+        let v1 = Vector3::X;
+        let v2 = Vector3::Y;
+        let v3 = -Vector3::X;
 
         assert_eq!(super::dot(&v1, &v1), 1.0);
         assert_eq!(super::dot(&v1, &v2), 0.0);
@@ -140,10 +154,10 @@ mod tests {
 
     #[test]
     fn cross() {
-        let v1 = Vector3::new(0.0, 0.0, 1.0);
-        let v2 = Vector3::new(0.0, 1.0, 0.0);
-        assert_eq!(super::cross(&v1, &v2), Vector3::new(-1.0, 0.0, 0.0));
-        assert_eq!(super::cross(&v2, &v1), Vector3::new(1.0, 0.0, 0.0));
+        let v1 = Vector3::Z;
+        let v2 = Vector3::Y;
+        assert_eq!(super::cross(&v1, &v2), -Vector3::X);
+        assert_eq!(super::cross(&v2, &v1), Vector3::X);
 
         let v1 = Vector3::new(2.0, 3.0, 4.0);
         let v2 = Vector3::new(5.0, 6.0, 7.0);

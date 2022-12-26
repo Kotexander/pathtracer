@@ -4,9 +4,10 @@ mod camera;
 mod image;
 mod math;
 mod ray;
+mod sphere;
 
 fn main() {
-    let ray = Ray::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 1.0));
+    let ray = Ray::new(Vector3::ZERO, Vector3::Z);
     let camera = Camera::new(&ray, 70.0f32.to_radians());
 
     println!("{camera:#?}");
