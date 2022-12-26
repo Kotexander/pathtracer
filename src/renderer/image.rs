@@ -1,4 +1,4 @@
-use crate::math::vector3::Vector3;
+use super::*;
 
 pub const BLACK: Vector3 = Vector3::new(0.0, 0.0, 0.0);
 
@@ -38,6 +38,10 @@ impl Image {
     }
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    pub fn buffer(&self) -> &[Vector3] {
+        self.buffer.as_ref()
     }
 }
 impl std::fmt::Debug for Image {

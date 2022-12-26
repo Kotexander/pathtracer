@@ -1,9 +1,9 @@
-use crate::{math::vector3::*, ray::Ray};
+use super::*;
 
 pub struct Hit {
-    t: f32,
-    pos: Vector3,
-    norm: Vector3,
+    pub t: f32,
+    pub pos: Vector3,
+    pub norm: Vector3,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,7 +44,7 @@ mod tests {
     use super::*;
     #[test]
     fn intersect() {
-        let ray = Ray::new(-Vector3::Z * 3.0, Vector3::Z);
+        let ray = Ray::new(Vector3::Z * -3.0, Vector3::Z);
         let sphere = Sphere::new(0.5, Vector3::ZERO);
 
         let hit = sphere.intersect(&ray, 0.0, f32::INFINITY).unwrap();

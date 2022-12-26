@@ -1,16 +1,19 @@
-use crate::{camera::Camera, math::vector3::Vector3, ray::Ray};
-
-mod camera;
-mod image;
 mod math;
-mod ray;
-mod sphere;
+mod renderer;
 
 fn main() {
-    let ray = Ray::new(Vector3::ZERO, Vector3::Z);
-    let camera = Camera::new(&ray, 70.0f32.to_radians());
+    let mut renderer = renderer::Renderer::new();
+    renderer.render();
 
-    println!("{camera:#?}");
-    println!("{:#?}", camera.get_ray(0.5, 0.5));
-    println!("{:#?}", camera.get_ray(0.0, 0.0));
+    let img = image::ImageBuffer::from_fn(
+        renderer.image.width() as u32,
+        renderer.image.height() as u32,
+        |x, y| {
+            let p = renderer.image.get(x as usize, y as usize);
+            image::Rgb([p.x, p.y, p.z])
+        },
+    );
+    let img = image::DynamicImage::ImageRgb32F(img).into_rgb8();
+
+    img.save("Renders/image.png").unwrap();
 }

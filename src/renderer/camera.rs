@@ -1,4 +1,4 @@
-use crate::{math::vector3::*, ray::Ray};
+use super::*;
 
 const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
@@ -33,7 +33,7 @@ impl Camera {
     pub fn get_ray(&self, u: f32, v: f32) -> Ray {
         Ray::new(
             self.pos,
-            (self.lower_left + self.horizontal * u + self.vertical * v + self.pos).normal(),
+            (self.lower_left + self.horizontal * u + self.vertical * v - self.pos).normal(),
         )
     }
 }

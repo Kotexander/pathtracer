@@ -1,5 +1,4 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
-
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -26,6 +25,9 @@ impl Vector3 {
     }
     pub fn normalize(&mut self) {
         *self /= self.length()
+    }
+    pub fn abs(&self) -> Self {
+        Self::new(self.x.abs(), self.y.abs(), self.z.abs())
     }
 }
 
