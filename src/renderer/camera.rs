@@ -2,38 +2,52 @@ use super::*;
 
 const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
+pub struct CameraConfig {
+    pub ray: Ray,
+    pub vfov: f32,
+    pub aspect: f32,
+}
+impl CameraConfig {
+    pub fn new(ray: Ray, vfov: f32, aspect: f32) -> Self {
+        Self { ray, vfov, aspect }
+    }
+    pub fn build(&self) -> Camera {
+        Camera::new(self)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Camera {
     pos: Vector3,
 
     horizontal: Vector3,
     vertical: Vector3,
-    lower_left: Vector3,
+    center: Vector3,
 }
 impl Camera {
-    pub fn new(ray: &Ray, vfov: f32) -> Self {
-        let h = (vfov / 2.0).tan();
+    pub fn new(config: &CameraConfig) -> Self {
+        let h = (config.vfov / 2.0).tan();
         let viewport = h * 2.0;
 
-        let h = cross(&UP, &ray.dir);
-        let v = cross(&ray.dir, &h);
+        let h = cross(&UP, &config.ray.dir);
+        let v = cross(&config.ray.dir, &h);
 
-        let horizontal = h * viewport;
+        let horizontal = h * viewport * config.aspect;
         let vertical = v * viewport;
 
-        let lower_left = ray.pos - horizontal / 2.0 - vertical / 2.0 + ray.dir;
+        let center = config.ray.pos + config.ray.dir;
 
         Self {
-            pos: ray.pos,
+            pos: config.ray.pos,
             horizontal,
             vertical,
-            lower_left,
+            center,
         }
     }
     pub fn get_ray(&self, u: f32, v: f32) -> Ray {
         Ray::new(
             self.pos,
-            (self.lower_left + self.horizontal * u + self.vertical * v - self.pos).normal(),
+            (self.center + self.horizontal * u + self.vertical * v - self.pos).normal(),
         )
     }
 }
