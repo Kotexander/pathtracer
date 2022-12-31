@@ -1,17 +1,21 @@
+mod camera;
 mod compute_pipeline;
-// mod math;
 mod model;
+mod ray;
 mod render_pipeline;
-// mod renderer;
 mod texture;
+mod vector3;
 mod wgpu_context;
 
-use compute_pipeline::ComputePipeline;
-// use math::vector3::Vector3;
-use model::Model;
-use render_pipeline::RenderPipeline;
-use texture::Texture;
-use wgpu_context::WgpuContext;
+use camera::*;
+use compute_pipeline::*;
+use model::*;
+use ray::*;
+use render_pipeline::*;
+use texture::*;
+use vector3::*;
+use wgpu::util::DeviceExt;
+use wgpu_context::*;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -51,6 +55,9 @@ struct App {
 
     texture: Texture,
     sampler: wgpu::Sampler,
+
+    camera_config: CameraConfig,
+    camera_buffer: wgpu::Buffer,
     // camera_controller: CameraController,
 }
 impl App {
@@ -67,24 +74,32 @@ impl App {
 
         let texture = Texture::new(&ctx.device, width, height);
 
-        let sampler = ctx.device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
+        let sampler = ctx
+            .device
+            .create_sampler(&wgpu::SamplerDescriptor::default());
 
-        // let camera_controller = CameraController::new();
+        let camera_config = CameraConfig::new(
+            Ray::new(Vector3::Z * 1.0, -Vector3::Z),
+            70.0f32.to_radians(),
+            width as f32 / height as f32,
+        );
+        let camera_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Config Buffer"),
+                contents: &camera_config.build().bytes(),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
         Self {
             ctx,
             render_pipeline,
             compute_pipeline,
             model,
             texture,
-            sampler, // camera_controller,
+            sampler,
+            camera_config,
+            camera_buffer,
+            // camera_controller,
         }
     }
     fn render(&mut self) {
@@ -114,10 +129,20 @@ impl App {
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: self.compute_pipeline.bind_group_layout(),
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(self.texture.view()),
-                }],
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(self.texture.view()),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.camera_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                ],
             });
 
         let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
@@ -182,14 +207,27 @@ impl App {
     }
 
     fn resize(&mut self, width: u32, height: u32) {
+        // context surface
         self.ctx.surface_config.width = width;
         self.ctx.surface_config.height = height;
         self.ctx.surface_configure();
 
+        // compute shader texture
         let desc = self.texture.desc_mut();
         desc.size.width = width;
         desc.size.height = height;
         self.texture.update(&self.ctx.device);
+
+        // camera
+        self.camera_config.aspect = width as f32 / height as f32;
+        self.camera_buffer =
+            self.ctx
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Camera Config Buffer"),
+                    contents: &self.camera_config.build().bytes(),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
     }
 
     // fn save(&self) {
