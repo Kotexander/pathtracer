@@ -109,6 +109,7 @@ pub fn cross(lhs: &Vector3, rhs: &Vector3) -> Vector3 {
     )
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
