@@ -17,31 +17,31 @@ use vector3::*;
 use wgpu::util::DeviceExt;
 use wgpu_context::*;
 use winit::{
-    event::{Event, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
-// struct CameraController {
-//     forward: bool,
-//     backward: bool,
-//     strafe_left: bool,
-//     strafe_right: bool,
-//     up: bool,
-//     down: bool,
-// }
-// impl CameraController {
-//     fn new() -> Self {
-//         Self {
-//             forward: false,
-//             backward: false,
-//             strafe_left: false,
-//             strafe_right: false,
-//             up: false,
-//             down: false,
-//         }
-//     }
-// }
+struct CameraController {
+    forward: bool,
+    backward: bool,
+    strafe_left: bool,
+    strafe_right: bool,
+    up: bool,
+    down: bool,
+}
+impl CameraController {
+    fn new() -> Self {
+        Self {
+            forward: false,
+            backward: false,
+            strafe_left: false,
+            strafe_right: false,
+            up: false,
+            down: false,
+        }
+    }
+}
 
 const VERTICIES: [[f32; 2]; 4] = [[-1.0, 1.0], [1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]];
 const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
@@ -58,7 +58,7 @@ struct App {
 
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
-    // camera_controller: CameraController,
+    camera_controller: CameraController,
 }
 impl App {
     async fn new(window: &Window) -> Self {
@@ -78,9 +78,11 @@ impl App {
             .device
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
+        let dist = 1.0;
         let camera_config = CameraConfig::new(
-            Ray::new(Vector3::Z * 1.0, -Vector3::Z),
-            70.0f32.to_radians(),
+            // Ray::new(Vector3::Z * dist - Vector3::Z), // behind
+            Ray::new(Vector3::Z * -dist, Vector3::Z), // front
+            60.0f32.to_radians(),
             width as f32 / height as f32,
         );
         let camera_buffer = ctx
@@ -90,6 +92,7 @@ impl App {
                 contents: &camera_config.build().bytes(),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
+        let camera_controller = CameraController::new();
         Self {
             ctx,
             render_pipeline,
@@ -99,7 +102,7 @@ impl App {
             sampler,
             camera_config,
             camera_buffer,
-            // camera_controller,
+            camera_controller,
         }
     }
     fn render(&mut self) {
@@ -155,13 +158,6 @@ impl App {
     }
 
     fn render_pass(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
-        // let mut encoder = self
-        // .ctx
-        // .device
-        // .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        // label: Some("Render Encoder"),
-        // });
-
         let bind_group = self
             .ctx
             .device
@@ -220,6 +216,10 @@ impl App {
 
         // camera
         self.camera_config.aspect = width as f32 / height as f32;
+        self.update_camera();
+    }
+
+    fn update_camera(&mut self) {
         self.camera_buffer =
             self.ctx
                 .device
@@ -241,60 +241,60 @@ impl App {
     // img.save("Renders/image.png").unwrap();
     // }
 
-    // fn input(&mut self, key: &VirtualKeyCode, state: &ElementState) {
-    //     let state = matches!(state, ElementState::Pressed);
-    //     match key {
-    //         VirtualKeyCode::W => {
-    //             self.camera_controller.forward = state;
-    //         }
-    //         VirtualKeyCode::S => {
-    //             self.camera_controller.backward = state;
-    //         }
+    fn input(&mut self, key: &VirtualKeyCode, state: &ElementState) {
+        let state = matches!(state, ElementState::Pressed);
+        match key {
+            VirtualKeyCode::W => {
+                self.camera_controller.forward = state;
+            }
+            VirtualKeyCode::S => {
+                self.camera_controller.backward = state;
+            }
 
-    //         VirtualKeyCode::A => {
-    //             self.camera_controller.strafe_left = state;
-    //         }
-    //         VirtualKeyCode::D => {
-    //             self.camera_controller.strafe_right = state;
-    //         }
+            VirtualKeyCode::A => {
+                self.camera_controller.strafe_left = state;
+            }
+            VirtualKeyCode::D => {
+                self.camera_controller.strafe_right = state;
+            }
 
-    //         VirtualKeyCode::E => {
-    //             self.camera_controller.up = state;
-    //         }
-    //         VirtualKeyCode::Q => {
-    //             self.camera_controller.down = state;
-    //         }
-    //         _ => {}
-    //     }
-    // }
+            VirtualKeyCode::E => {
+                self.camera_controller.up = state;
+            }
+            VirtualKeyCode::Q => {
+                self.camera_controller.down = state;
+            }
+            _ => {}
+        }
+    }
 
-    // fn update(&mut self, dt: f32) {
-    //     let speed = 5.0;
-    //     let mut dir = Vector3::ZERO;
-    //     if self.camera_controller.forward {
-    //         dir.z += 1.0;
-    //     }
-    //     if self.camera_controller.backward {
-    //         dir.z -= 1.0;
-    //     }
-    //     if self.camera_controller.strafe_left {
-    //         dir.x -= 1.0;
-    //     }
-    //     if self.camera_controller.strafe_right {
-    //         dir.x += 1.0;
-    //     }
-    //     if self.camera_controller.up {
-    //         dir.y += 1.0;
-    //     }
-    //     if self.camera_controller.down {
-    //         dir.y -= 1.0;
-    //     }
-    //     if dir != Vector3::ZERO {
-    //         dir.normalize();
-    //         self.renderer.camera_config.ray.pos += dir * speed * dt;
-    //         self.renderer.update_camera();
-    //     }
-    // }
+    fn update(&mut self, dt: f32) {
+        let speed = 5.0;
+        let mut dir = Vector3::ZERO;
+        if self.camera_controller.forward {
+            dir.z += 1.0;
+        }
+        if self.camera_controller.backward {
+            dir.z -= 1.0;
+        }
+        if self.camera_controller.strafe_left {
+            dir.x -= 1.0;
+        }
+        if self.camera_controller.strafe_right {
+            dir.x += 1.0;
+        }
+        if self.camera_controller.up {
+            dir.y += 1.0;
+        }
+        if self.camera_controller.down {
+            dir.y -= 1.0;
+        }
+        if dir != Vector3::ZERO {
+            dir.normalize();
+            self.camera_config.ray.pos += dir * speed * dt;
+            self.update_camera();
+        }
+    }
 }
 
 fn main() {
@@ -325,17 +325,17 @@ fn main() {
                     let height = new_inner_size.height;
                     app.resize(width, height);
                 }
-                // WindowEvent::KeyboardInput {
-                //     input:
-                //         KeyboardInput {
-                //             virtual_keycode: Some(vkeycode),
-                //             state,
-                //             ..
-                //         },
-                //     ..
-                // } => {
-                //     // app.input(&vkeycode, &state);
-                // }
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(vkeycode),
+                            state,
+                            ..
+                        },
+                    ..
+                } => {
+                    app.input(&vkeycode, &state);
+                }
                 _ => {}
             },
             Event::MainEventsCleared => {
@@ -344,7 +344,7 @@ fn main() {
             Event::RedrawRequested(..) => {
                 let dt = std::time::Instant::now();
                 app.render();
-                // app.update(dt.elapsed().as_secs_f32());
+                app.update(dt.elapsed().as_secs_f32());
                 window.set_title(&format!(
                     "Pathtracer: {} ms | FPS: {:.0}",
                     dt.elapsed().as_millis(),
