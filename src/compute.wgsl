@@ -82,13 +82,12 @@ var<uniform> camera: Camera;
 var<storage> spheres: array<Sphere>;
 
 
-fn trace_path(ndc: vec2<f32>, colour: ptr<function, vec3<f32>>) -> bool {
+fn trace_path(ray: Ray, colour: ptr<function, vec3<f32>>) -> bool {
     let len = i32(arrayLength(&spheres));
     var closet_hit: HitRecord;
     closet_hit.t = 1.0 / 0.0;
     var has_hit = false;
 
-    let ray = camera_get_ray(camera, ndc);
 
     for(var i: i32 = 0; i < len; i++) {
         var hit_record: HitRecord;
@@ -104,6 +103,10 @@ fn trace_path(ndc: vec2<f32>, colour: ptr<function, vec3<f32>>) -> bool {
     }
     return false;
 }
+fn miss(dir_y: f32) -> vec3<f32> {
+    let t = (dir_y + 1.0) / 2.0;
+    return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
+}
 
 struct In {
     @builtin(workgroup_id) wg_id: vec3<u32>,
@@ -117,14 +120,19 @@ fn main( in: In ) {
     let pixel_coords = vec2<f32>(in.wg_id.xy) * 16.0 + vec2<f32>(in.i_id.xy);
 
 
-    let uv = pixel_coords / texture_dimensions;
+    let uv = (pixel_coords + vec2<f32>(0.5, 0.5)) / texture_dimensions;
 
     var ndc: vec2<f32>;
     ndc.x = uv.x * 2.0 - 1.0;
     ndc.y = -(uv.y * 2.0 - 1.0);
 
-    var colour = vec3<f32>(0.0, 0.0, 0.0);
-    trace_path(ndc, &colour);
+    let ray = camera_get_ray(camera, ndc);
+
+    // normal
+    var colour: vec3<f32>;
+    if !trace_path(ray, &colour) {
+        colour = miss(ray.dir.y);
+    }
     textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(colour, 1.0));
     
     // textureStore(tex, vec2<i32>(pixel_coords), vec4(0.0, uv.x, uv.y, 1.0)); // green and blue

@@ -85,7 +85,7 @@ impl App {
         let spheres = vec![
             Sphere::new(Vector3::ZERO, 0.5),
             Sphere::new(Vector3::Z * 3.0, 0.5),
-            Sphere::new(Vector3::Y * -100.5, 100.0),
+            Sphere::new(Vector3::Y * -1000.5, 1000.0),
         ];
         let spheres = ctx
             .device
