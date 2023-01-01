@@ -78,6 +78,33 @@ var tex: texture_storage_2d<rgba32float,write>;
 @group(0) @binding(1)
 var<uniform> camera: Camera;
 
+@group(0) @binding(2)
+var<storage> spheres: array<Sphere>;
+
+
+fn trace_path(ndc: vec2<f32>, colour: ptr<function, vec3<f32>>) -> bool {
+    let len = i32(arrayLength(&spheres));
+    var closet_hit: HitRecord;
+    closet_hit.t = 1.0 / 0.0;
+    var has_hit = false;
+
+    let ray = camera_get_ray(camera, ndc);
+
+    for(var i: i32 = 0; i < len; i++) {
+        var hit_record: HitRecord;
+        if (ray_sphere_intersect(spheres[i], ray, 0.0, closet_hit.t, &hit_record)) {
+            closet_hit = hit_record;
+            has_hit = true;
+        }
+    }
+
+    if has_hit {
+        *colour = (closet_hit.norm + vec3<f32>(1.0, 1.0, 1.0)) * 0.5;
+        return true;
+    }
+    return false;
+}
+
 struct In {
     @builtin(workgroup_id) wg_id: vec3<u32>,
     @builtin(local_invocation_id) i_id: vec3<u32>
@@ -96,18 +123,8 @@ fn main( in: In ) {
     ndc.x = uv.x * 2.0 - 1.0;
     ndc.y = -(uv.y * 2.0 - 1.0);
 
-    let sphere = sphere_new(vec3<f32>(0.0, 0.0, 0.0), 0.5);
-    let ray = camera_get_ray(camera, ndc);
-    
-    var hit: HitRecord;
-    var colour: vec3<f32>;
-    if ray_sphere_intersect(sphere, ray, 0.0, 100000.0, &hit) {
-        colour = (hit.norm + vec3<f32>(1.0, 1.0, 1.0)) * 0.5;
-    }
-    else {
-        colour = vec3<f32>(0.0, 0.0, 0.0);
-
-    }
+    var colour = vec3<f32>(0.0, 0.0, 0.0);
+    trace_path(ndc, &colour);
     textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(colour, 1.0));
     
     // textureStore(tex, vec2<i32>(pixel_coords), vec4(0.0, uv.x, uv.y, 1.0)); // green and blue

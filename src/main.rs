@@ -3,6 +3,7 @@ mod compute_pipeline;
 mod model;
 mod ray;
 mod render_pipeline;
+mod sphere;
 mod texture;
 mod vector3;
 mod wgpu_context;
@@ -12,6 +13,7 @@ use compute_pipeline::*;
 use model::*;
 use ray::*;
 use render_pipeline::*;
+use sphere::*;
 use texture::*;
 use vector3::*;
 use wgpu::util::DeviceExt;
@@ -56,6 +58,9 @@ struct App {
     texture: Texture,
     sampler: wgpu::Sampler,
 
+    // spheres: Vec<Sphere>,
+    spheres: wgpu::Buffer,
+
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
     camera_controller: CameraController,
@@ -73,14 +78,26 @@ impl App {
         let height = size.height;
 
         let texture = Texture::new(&ctx.device, width, height);
-
         let sampler = ctx
             .device
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
+        let spheres = vec![
+            Sphere::new(Vector3::ZERO, 0.5),
+            Sphere::new(Vector3::Z * 3.0, 0.5),
+            Sphere::new(Vector3::Y * -100.5, 100.0),
+        ];
+        let spheres = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Spheres Buffer"),
+                contents: bytemuck::cast_slice(&spheres),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         let dist = 1.0;
         let camera_config = CameraConfig::new(
-            // Ray::new(Vector3::Z * dist - Vector3::Z), // behind
+            // Ray::new(Vector3::Z * dist, -Vector3::Z), // behind
             Ray::new(Vector3::Z * -dist, Vector3::Z), // front
             60.0f32.to_radians(),
             width as f32 / height as f32,
@@ -100,6 +117,7 @@ impl App {
             model,
             texture,
             sampler,
+            spheres,
             camera_config,
             camera_buffer,
             camera_controller,
@@ -141,6 +159,14 @@ impl App {
                         binding: 1,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                             buffer: &self.camera_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.spheres,
                             offset: 0,
                             size: None,
                         }),
