@@ -83,9 +83,12 @@ impl App {
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
         let spheres = vec![
-            Sphere::new(Vector3::ZERO, 0.5),
-            Sphere::new(Vector3::Z * 3.0, 0.5),
-            Sphere::new(Vector3::Y * -1000.5, 1000.0),
+            Sphere::new(Vector3::ZERO, 0.5),           // center
+            Sphere::new(Vector3::Z * 3.0, 0.5),        // back
+            Sphere::new(Vector3::Z * -3.0, 0.5),       // front
+            Sphere::new(Vector3::X * 3.0, 0.5),        // right
+            Sphere::new(Vector3::X * -3.0, 0.5),       // left
+            Sphere::new(Vector3::Y * -1000.5, 1000.0), // ground
         ];
         let spheres = ctx
             .device
@@ -95,10 +98,8 @@ impl App {
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let dist = 1.0;
         let camera_config = CameraConfig::new(
-            // Ray::new(Vector3::Z * dist, -Vector3::Z), // behind
-            Ray::new(Vector3::Z * -dist, Vector3::Z), // front
+            Ray::new(Vector3::new(0.0, 1.0, -5.0), Vector3::Z),
             60.0f32.to_radians(),
             width as f32 / height as f32,
         );
@@ -144,6 +145,16 @@ impl App {
     }
 
     fn compute_pass(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let seed: u32 = rand::random();
+        let seed_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Global Buffer"),
+                contents: bytemuck::bytes_of(&seed),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
         let bind_group = self
             .ctx
             .device
@@ -167,6 +178,14 @@ impl App {
                         binding: 2,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                             buffer: &self.spheres,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &seed_buffer,
                             offset: 0,
                             size: None,
                         }),
