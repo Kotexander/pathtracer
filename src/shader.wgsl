@@ -19,21 +19,24 @@ fn vs_main(model: VertexIn) -> VertexOut {
 var tex: texture_2d<f32>;
 @group(0) @binding(1)
 var sam: sampler;
+@group(0) @binding(2)
+var<uniform> samples: i32;
 
 // srgb -> linear
-fn correct(colour: vec4<f32>) -> vec4<f32> {
+fn correct(colour: vec3<f32>) -> vec3<f32> {
     let exp = 2.2;
 
-    return vec4<f32>(
+    return vec3<f32>(
         pow(colour.x, exp),
         pow(colour.y, exp),
         pow(colour.z, exp),
-        colour.w
     );
 }
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     // return textureSample(tex, sam, in.uv);
-    return correct(textureSample(tex, sam, in.uv));
+    let colour = textureSample(tex, sam, in.uv);
+    let rgb = colour.xyz / f32(samples);
+    return vec4<f32>(correct(rgb), colour.w);
 }

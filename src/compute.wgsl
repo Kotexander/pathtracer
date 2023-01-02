@@ -13,6 +13,23 @@ fn randu(seed: ptr<function, u32>) -> u32 {
 fn randf(seed: ptr<function, u32>) -> f32 {
     return f32(randu(seed)) / f32(0xffffffffu);
 }
+fn rand_in_sphere(seed: ptr<function, u32>) -> vec3<f32> {
+    loop {
+        let x = 2.0 * randf(seed) - 1.0;
+        let y = 2.0 * randf(seed) - 1.0;
+        let z = 2.0 * randf(seed) - 1.0;
+
+        let len_sqrd = x*x + y*y + z*z;
+
+        if (len_sqrd < 1.0) {
+            return vec3<f32>(x, y, z);
+        }
+    }
+    
+    // to make compiler happy
+    // should be impossible
+    return vec3<f32>(0.0, 0.0, 0.0);
+}
 // --- !Random ---
 
 // --- Ray ---
@@ -95,10 +112,16 @@ fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_re
     return true;
 }
 // --- !Sphere ---
-
+// --- Globals ---
+struct Globals {
+    seed: u32,
+    samples: i32,
+    depth: i32,
+}
+// --- !Globals ---
 
 @group(0) @binding(0)
-var tex: texture_storage_2d<rgba32float,write>;
+var tex: texture_storage_2d<rgba32float,read_write>;
 
 @group(0) @binding(1)
 var<uniform> camera: Camera;
@@ -107,25 +130,24 @@ var<uniform> camera: Camera;
 var<storage> spheres: array<Sphere>;
 
 @group(0) @binding(3)
-var<uniform> global_seed: u32;
+var<uniform> globals: Globals;
 
-fn trace_path(ray: Ray, colour: ptr<function, vec3<f32>>) -> bool {
+fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
     let len = i32(arrayLength(&spheres));
-    var closet_hit: HitRecord;
-    closet_hit.t = 1.0 / 0.0;
+    var closet_hit: HitRecord; // hit record of the closet object
+    closet_hit.t = t_max; // set closet distance to max distance
     var has_hit = false;
 
     for(var i: i32 = 0; i < len; i++) {
         var hit_record: HitRecord;
-        if (ray_sphere_intersect(spheres[i], ray, 0.0, closet_hit.t, &hit_record)) {
+        if (ray_sphere_intersect(spheres[i], ray, t_min, closet_hit.t, &hit_record)) {
             closet_hit = hit_record;
             has_hit = true;
         }
     }
 
     if has_hit {
-        // normal
-        *colour = (closet_hit.norm + vec3<f32>(1.0, 1.0, 1.0)) * 0.5;
+        *hit_record = closet_hit;
         return true;
     }
     return false;
@@ -133,6 +155,28 @@ fn trace_path(ray: Ray, colour: ptr<function, vec3<f32>>) -> bool {
 fn miss(dir_y: f32) -> vec3<f32> {
     let t = (dir_y + 1.0) / 2.0;
     return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
+}
+fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
+    var ray = ray;
+
+    var colour = vec3<f32>(0.0, 0.0, 0.0);
+    var multiplier = 1.0;
+
+    let t_min = 0.001;
+    let t_max = 1.0 / 0.0;
+
+    for (var i: i32 = 0; i < globals.depth; i++) {
+        var hit_record: HitRecord;
+        if closet_hit(ray, t_min, t_max, &hit_record) {
+            ray = ray_new(hit_record.pos, normalize(hit_record.norm + rand_in_sphere(seed)));
+        }
+        else {
+            colour += miss(ray.dir.y) * multiplier;
+            break;
+        }
+        multiplier *= 0.5;
+    }
+    return colour;
 }
 
 struct In {
@@ -165,14 +209,12 @@ fn main( in: In ) {
     ndc.y = -(uv.y * 2.0 - 1.0);
 
     // seed is combined from the cpu plus invocation pixel coord
-    var local_seed = global_seed + u32(randv(ndc) * f32(0xffffffffu));
+    var local_seed = globals.seed + u32(randv(ndc) * f32(0xffffffffu));
 
-    // number of rays per pixel
-    let samples = 10;
     // final accumulated colour
     var final_colour = vec3<f32>(0.0, 0.0, 0.0);
 
-    for (var i: i32 = 0; i < samples; i++) {
+    for (var i: i32 = 0; i < globals.samples; i++) {
         // uv and ndc with random offset within the pixel
         let uv = (pixel_coords + vec2<f32>(randf(&local_seed), randf(&local_seed))) / texture_dimensions;
         var ndc: vec2<f32>;
@@ -182,17 +224,17 @@ fn main( in: In ) {
         // get ray
         let ray = camera_get_ray(camera, ndc);
 
-        var colour: vec3<f32>;
-        if !trace_path(ray, &colour) {
-            // miss colour (aka sky)
-            colour = miss(ray.dir.y);
-        }
-
-        final_colour += colour;
+        final_colour += trace_path(ray, &local_seed);
     } 
 
+    let pc_i32 = vec2<i32>(pixel_coords);
+    var texture_colour = textureLoad(tex, pc_i32);
+    texture_colour += vec4<f32>(final_colour / f32(globals.samples), 0.0);
+    textureStore(tex, pc_i32, texture_colour);
+
+
     // store the average colour into the output texture
-    textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(final_colour / f32(samples), 1.0));
+    // textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(final_colour / f32(globals.samples), 1.0));
     
     // textureStore(tex, vec2<i32>(pixel_coords), vec4(0.0, uv.x, uv.y, 1.0)); // green and blue
     // textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(uv.x, uv.y, 0.0, 1.0)); // red and green

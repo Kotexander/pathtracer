@@ -1,5 +1,6 @@
 mod camera;
 mod compute_pipeline;
+mod globals;
 mod model;
 mod ray;
 mod render_pipeline;
@@ -10,6 +11,7 @@ mod wgpu_context;
 
 use camera::*;
 use compute_pipeline::*;
+use globals::*;
 use model::*;
 use ray::*;
 use render_pipeline::*;
@@ -64,6 +66,11 @@ struct App {
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
     camera_controller: CameraController,
+
+    globals: Globals,
+
+    dirty: bool,
+    samples: i32,
 }
 impl App {
     async fn new(window: &Window) -> Self {
@@ -111,6 +118,11 @@ impl App {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
         let camera_controller = CameraController::new();
+
+        let globals = Globals::new(rand::random(), 10, 10);
+        let dirty = true;
+        let samples = -1;
+
         Self {
             ctx,
             render_pipeline,
@@ -122,6 +134,9 @@ impl App {
             camera_config,
             camera_buffer,
             camera_controller,
+            globals,
+            dirty,
+            samples,
         }
     }
     fn render(&mut self) {
@@ -137,6 +152,12 @@ impl App {
                 label: Some("Encoder"),
             });
 
+        if self.dirty {
+            self.dirty = false;
+            self.samples = 0;
+            self.clear(&mut encoder);
+        }
+
         self.compute_pass(&mut encoder);
         self.render_pass(&mut encoder, &view);
 
@@ -144,14 +165,33 @@ impl App {
         output.present();
     }
 
+    fn clear(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: self.texture.view(),
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+    }
+
     fn compute_pass(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        let seed: u32 = rand::random();
         let seed_buffer = self
             .ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Global Buffer"),
-                contents: bytemuck::bytes_of(&seed),
+                contents: bytemuck::bytes_of(&self.globals),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
@@ -200,9 +240,21 @@ impl App {
         let width = (t_desc.size.width as f32 / 16.0).ceil() as u32;
         let height = (t_desc.size.height as f32 / 16.0).ceil() as u32;
         cpass.dispatch_workgroups(width, height, 1);
+
+        self.globals.seed = rand::random();
+        self.samples += 1;
     }
 
     fn render_pass(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        let globals = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Render Globals"),
+                contents: bytemuck::bytes_of_mut(&mut self.samples),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
         let bind_group = self
             .ctx
             .device
@@ -217,6 +269,14 @@ impl App {
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &globals,
+                            offset: 0,
+                            size: None,
+                        }),
                     },
                 ],
             });
@@ -273,6 +333,7 @@ impl App {
                     contents: &self.camera_config.build().bytes(),
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
+        self.dirty = true;
     }
 
     // fn save(&self) {

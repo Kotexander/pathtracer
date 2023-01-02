@@ -6,7 +6,7 @@ const BIND_GROUP_LAYOUT_DESC: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupL
             binding: 0,
             visibility: wgpu::ShaderStages::COMPUTE,
             ty: wgpu::BindingType::StorageTexture {
-                access: wgpu::StorageTextureAccess::WriteOnly,
+                access: wgpu::StorageTextureAccess::ReadWrite,
                 format: wgpu::TextureFormat::Rgba32Float,
                 view_dimension: wgpu::TextureViewDimension::D2,
             },
