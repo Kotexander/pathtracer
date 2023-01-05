@@ -1,3 +1,4 @@
+mod bytes;
 mod camera;
 mod compute_pipeline;
 mod globals;
@@ -9,6 +10,7 @@ mod texture;
 mod vector3;
 mod wgpu_context;
 
+use bytes::*;
 use camera::*;
 use compute_pipeline::*;
 use globals::*;
@@ -25,6 +27,14 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
+
+const WHITE: Vector3 = Vector3::new(1.0, 1.0, 1.0);
+const GREY: Vector3 = Vector3::new(0.1, 0.1, 0.1);
+const BLACK: Vector3 = Vector3::new(0.0, 0.0, 0.0);
+
+const BLUE: Vector3 = Vector3::new(0.0, 0.0, 1.0);
+const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
+const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
 struct CameraController {
     forward: bool,
@@ -90,24 +100,24 @@ impl App {
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
         let spheres = vec![
-            Sphere::new(Vector3::ZERO, 0.5),           // center
-            Sphere::new(Vector3::Z * 3.0, 0.5),        // back
-            Sphere::new(Vector3::Z * -3.0, 0.5),       // front
-            Sphere::new(Vector3::X * 3.0, 0.5),        // right
-            Sphere::new(Vector3::X * -3.0, 0.5),       // left
-            Sphere::new(Vector3::Y * -1000.5, 1000.0), // ground
+            Sphere::new(Vector3::ZERO, 1.0, RED),            // center bottom
+            Sphere::new(Vector3::Y * 2.0, 1.0, BLUE),        // center middle
+            Sphere::new(Vector3::Y * 4.0, 1.0, GREEN),       // center top
+            Sphere::new(Vector3::X * 3.0, 0.5, BLACK),       // right
+            Sphere::new(Vector3::X * -3.0, 0.5, WHITE),      // left
+            Sphere::new(Vector3::Y * -1001.0, 1000.0, GREY), // ground
         ];
         let spheres = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Spheres Buffer"),
-                contents: bytemuck::cast_slice(&spheres),
+                contents: &spheres.bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
         let camera_config = CameraConfig::new(
             Ray::new(Vector3::new(0.0, 1.0, -5.0), Vector3::Z),
-            60.0f32.to_radians(),
+            50.0f32.to_radians(),
             width as f32 / height as f32,
         );
         let camera_buffer = ctx
@@ -119,7 +129,7 @@ impl App {
             });
         let camera_controller = CameraController::new();
 
-        let globals = Globals::new(rand::random(), 10, 10);
+        let globals = Globals::new(rand::random(), 1, 10);
         let dirty = true;
         let samples = -1;
 
@@ -191,7 +201,7 @@ impl App {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Global Buffer"),
-                contents: bytemuck::bytes_of(&self.globals),
+                contents: &self.globals.bytes(),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
@@ -251,7 +261,7 @@ impl App {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Render Globals"),
-                contents: bytemuck::bytes_of_mut(&mut self.samples),
+                contents: &self.samples.bytes(),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 

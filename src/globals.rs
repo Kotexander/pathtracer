@@ -1,3 +1,5 @@
+use crate::bytes::Bytes;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Globals {
@@ -12,5 +14,10 @@ impl Globals {
             samples,
             depth,
         }
+    }
+}
+impl Bytes for Globals {
+    fn bytes(&self) -> Vec<u8> {
+        Vec::from(bytemuck::bytes_of(self))
     }
 }

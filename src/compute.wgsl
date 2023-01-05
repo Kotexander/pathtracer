@@ -51,7 +51,6 @@ fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
 // --- Camera ---
 struct Camera {
     pos: vec3<f32>,
-
     horizontal: vec3<f32>,
     vertical: vec3<f32>,
     center: vec3<f32>,
@@ -69,6 +68,8 @@ struct HitRecord {
     t: f32,
     pos: vec3<f32>,
     norm: vec3<f32>,
+
+    sphere_index: i32,
 }
 // --- !Hit Record
 
@@ -76,12 +77,7 @@ struct HitRecord {
 struct Sphere {
     pos: vec3<f32>,
     rad: f32,
-}
-fn sphere_new(pos: vec3<f32>, rad: f32) -> Sphere {
-    var sphere: Sphere;
-    sphere.pos = pos;
-    sphere.rad = rad;
-    return sphere;
+    albedo: vec3<f32>,   
 }
 fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
     let pos = ray.pos - sphere.pos;
@@ -142,6 +138,7 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
         var hit_record: HitRecord;
         if (ray_sphere_intersect(spheres[i], ray, t_min, closet_hit.t, &hit_record)) {
             closet_hit = hit_record;
+            closet_hit.sphere_index = i;
             has_hit = true;
         }
     }
@@ -153,8 +150,10 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
     return false;
 }
 fn miss(dir_y: f32) -> vec3<f32> {
-    let t = (dir_y + 1.0) / 2.0;
-    return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
+    return vec3<f32>(0.0, 0.0, 0.0);
+
+    // let t = (dir_y + 1.0) / 2.0;
+    // return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
 }
 fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     var ray = ray;
@@ -165,16 +164,21 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     let t_min = 0.001;
     let t_max = 1.0 / 0.0;
 
-    for (var i: i32 = 0; i < globals.depth; i++) {
+    var i = 0;
+    for (; i < globals.depth; i++) {
         var hit_record: HitRecord;
         if closet_hit(ray, t_min, t_max, &hit_record) {
             ray = ray_new(hit_record.pos, normalize(hit_record.norm + rand_in_sphere(seed)));
+            colour += spheres[hit_record.sphere_index].albedo * multiplier;
         }
         else {
             colour += miss(ray.dir.y) * multiplier;
             break;
         }
-        multiplier *= 0.5;
+        multiplier *= 0.25;
+    }
+    if i == globals.depth {
+        return vec3<f32>(0.0, 0.0, 0.0);
     }
     return colour;
 }

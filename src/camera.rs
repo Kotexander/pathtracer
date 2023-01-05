@@ -1,4 +1,4 @@
-use crate::{ray::Ray, vector3::*};
+use crate::{bytes::Bytes, ray::Ray, vector3::*};
 
 #[derive(Clone, Copy, Debug)]
 pub struct CameraConfig {
@@ -45,32 +45,28 @@ impl Camera {
             center,
         }
     }
-    pub fn bytes(&self) -> Vec<u8> {
-        let mut b_p = Vec::from(bytemuck::bytes_of(&self.pos));
-        let mut b_h = Vec::from(bytemuck::bytes_of(&self.horizontal));
-        let mut b_v = Vec::from(bytemuck::bytes_of(&self.vertical));
-        let mut b_c = Vec::from(bytemuck::bytes_of(&self.center));
-        let b_4 = vec![0u8; 4];
+}
+impl Bytes for Camera {
+    fn bytes(&self) -> Vec<u8> {
+        let b_p = bytemuck::bytes_of(&self.pos);
+        let b_h = bytemuck::bytes_of(&self.horizontal);
+        let b_v = bytemuck::bytes_of(&self.vertical);
+        let b_c = bytemuck::bytes_of(&self.center);
+        let b_4 = [0u8; 4];
         let mut v = vec![];
 
-        v.append(&mut b_p);
-        v.append(&mut b_4.clone());
+        v.extend(b_p);
+        v.extend(b_4.clone());
 
-        v.append(&mut b_h);
-        v.append(&mut b_4.clone());
+        v.extend(b_h);
+        v.extend(b_4.clone());
 
-        v.append(&mut b_v);
-        v.append(&mut b_4.clone());
+        v.extend(b_v);
+        v.extend(b_4.clone());
 
-        v.append(&mut b_c);
-        v.append(&mut b_4.clone());
+        v.extend(b_c);
+        v.extend(b_4.clone());
 
         v
     }
-    // pub fn get_ray(&self, u: f32, v: f32) -> Ray {
-    //     Ray::new(
-    //         self.pos,
-    //         (self.center + self.horizontal * u + self.vertical * v - self.pos).normal(),
-    //     )
-    // }
 }
