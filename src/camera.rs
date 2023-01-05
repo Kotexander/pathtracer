@@ -2,19 +2,37 @@ use crate::{bytes::Bytes, ray::Ray, vector3::*};
 
 #[derive(Clone, Copy, Debug)]
 pub struct CameraConfig {
-    pub ray: Ray,
+    pub pos: Vector3,
+    pub yaw: f32,
+    pub pitch: f32,
     pub vfov: f32,
     pub aspect: f32,
 }
 impl CameraConfig {
-    pub fn new(ray: Ray, vfov: f32, aspect: f32) -> Self {
-        Self { ray, vfov, aspect }
+    pub fn new(pos: Vector3, yaw: f32, pitch: f32, vfov: f32, aspect: f32) -> Self {
+        Self {
+            pos,
+            yaw,
+            pitch,
+            vfov,
+            aspect,
+        }
     }
     pub fn build(&self) -> Camera {
-        Camera::new(self)
+        let dir = self.dir();
+        let ray = Ray::new(self.pos, dir);
+
+        Camera::new(&ray, self.vfov, self.aspect)
+    }
+    pub fn dir(&self) -> Vector3 {
+        let y = self.pitch.sin();
+        let z = self.yaw.cos() * self.pitch.cos();
+        let x = self.yaw.sin() * self.pitch.cos();
+
+        Vector3::new(x, y, z)
     }
 }
-const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
+pub const UP: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -26,20 +44,20 @@ pub struct Camera {
     center: Vector3,
 }
 impl Camera {
-    pub fn new(config: &CameraConfig) -> Self {
-        let h = (config.vfov / 2.0).tan();
+    pub fn new(ray: &Ray, vfov: f32, aspect: f32) -> Self {
+        let h = (vfov / 2.0).tan();
         let viewport = h * 2.0;
 
-        let h = cross(&UP, &config.ray.dir);
-        let v = cross(&config.ray.dir, &h);
+        let h = cross(&UP, &ray.dir).normal();
+        let v = cross(&ray.dir, &h);
 
-        let horizontal = h * viewport * config.aspect;
+        let horizontal = h * viewport * aspect;
         let vertical = v * viewport;
 
-        let center = config.ray.pos + config.ray.dir;
+        let center = ray.pos + ray.dir;
 
         Self {
-            pos: config.ray.pos,
+            pos: ray.pos,
             horizontal,
             vertical,
             center,

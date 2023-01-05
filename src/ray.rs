@@ -9,18 +9,18 @@ impl Ray {
     pub const fn new(pos: Vector3, dir: Vector3) -> Self {
         Self { pos, dir }
     }
-    pub fn at(&self, t: f32) -> Vector3 {
-        self.pos + (self.dir * t)
-    }
+    // pub fn at(&self, t: f32) -> Vector3 {
+    //     self.pos + (self.dir * t)
+    // }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn at() {
-        let ray = Ray::new(Vector3::new(0.0, 1.0, 0.0), Vector3::new(0.0, 1.0, 1.0));
-        assert_eq!(ray.at(5.0), Vector3::new(0.0, 6.0, 5.0));
-    }
-}
+//     #[test]
+//     fn at() {
+//         let ray = Ray::new(Vector3::new(0.0, 1.0, 0.0), Vector3::new(0.0, 1.0, 1.0));
+//         assert_eq!(ray.at(5.0), Vector3::new(0.0, 6.0, 5.0));
+//     }
+// }

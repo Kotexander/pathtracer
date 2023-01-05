@@ -15,7 +15,6 @@ use camera::*;
 use compute_pipeline::*;
 use globals::*;
 use model::*;
-use ray::*;
 use render_pipeline::*;
 use sphere::*;
 use texture::*;
@@ -23,9 +22,11 @@ use vector3::*;
 use wgpu::util::DeviceExt;
 use wgpu_context::*;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{
+        DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::{CursorGrabMode, Window, WindowBuilder},
 };
 
 const WHITE: Vector3 = Vector3::new(1.0, 1.0, 1.0);
@@ -43,6 +44,12 @@ struct CameraController {
     strafe_right: bool,
     up: bool,
     down: bool,
+
+    shift_down: bool,
+    ctrl_down: bool,
+
+    right_down: bool,
+    delta_mouse: Option<[f32; 2]>,
 }
 impl CameraController {
     fn new() -> Self {
@@ -53,6 +60,12 @@ impl CameraController {
             strafe_right: false,
             up: false,
             down: false,
+
+            shift_down: false,
+            ctrl_down: false,
+
+            right_down: false,
+            delta_mouse: None,
         }
     }
 }
@@ -116,8 +129,10 @@ impl App {
             });
 
         let camera_config = CameraConfig::new(
-            Ray::new(Vector3::new(0.0, 1.0, -5.0), Vector3::Z),
-            50.0f32.to_radians(),
+            Vector3::new(0.0, 1.0, -5.0),
+            0.0f32.to_radians(),
+            0.0f32.to_radians(),
+            45.0f32.to_radians(),
             width as f32 / height as f32,
         );
         let camera_buffer = ctx
@@ -374,6 +389,13 @@ impl App {
                 self.camera_controller.strafe_right = state;
             }
 
+            VirtualKeyCode::LShift => {
+                self.camera_controller.shift_down = state;
+            }
+            VirtualKeyCode::LControl => {
+                self.camera_controller.ctrl_down = state;
+            }
+
             VirtualKeyCode::E => {
                 self.camera_controller.up = state;
             }
@@ -385,29 +407,61 @@ impl App {
     }
 
     fn update(&mut self, dt: f32) {
-        let speed = 5.0;
-        let mut dir = Vector3::ZERO;
+        let mut cam_dirty = false;
+        let sensitivity = 0.005;
+
+        let mut speed = 5.0;
+        if self.camera_controller.shift_down {
+            speed *= 2.0;
+        }
+        if self.camera_controller.ctrl_down {
+            speed /= 2.0;
+        }
+
+        if self.camera_controller.right_down {
+            if let Some(delta) = self.camera_controller.delta_mouse {
+                self.camera_config.yaw += delta[0] * sensitivity;
+                self.camera_config.pitch -= delta[1] * sensitivity;
+
+                self.camera_config.pitch = self
+                    .camera_config
+                    .pitch
+                    .clamp(-80.0f32.to_radians(), 80.0f32.to_radians());
+
+                cam_dirty = true;
+
+                self.camera_controller.delta_mouse = None;
+            }
+        }
+
+        let cam_dir = self.camera_config.dir();
+        let right = cross(&camera::UP, &cam_dir);
+
+        let mut offset = Vector3::ZERO;
         if self.camera_controller.forward {
-            dir.z += 1.0;
+            offset += cam_dir;
         }
         if self.camera_controller.backward {
-            dir.z -= 1.0;
+            offset -= cam_dir;
         }
         if self.camera_controller.strafe_left {
-            dir.x -= 1.0;
+            offset -= right;
         }
         if self.camera_controller.strafe_right {
-            dir.x += 1.0;
+            offset += right;
         }
         if self.camera_controller.up {
-            dir.y += 1.0;
+            offset.y += 1.0;
         }
         if self.camera_controller.down {
-            dir.y -= 1.0;
+            offset.y -= 1.0;
         }
-        if dir != Vector3::ZERO {
-            dir.normalize();
-            self.camera_config.ray.pos += dir * speed * dt;
+        if offset != Vector3::ZERO {
+            offset.normalize();
+            self.camera_config.pos += offset * speed * dt;
+            cam_dirty = true;
+        }
+        if cam_dirty {
             self.update_camera();
         }
     }
@@ -452,8 +506,29 @@ fn main() {
                 } => {
                     app.input(&vkeycode, &state);
                 }
+                WindowEvent::MouseInput { state, button, .. } => {
+                    if let MouseButton::Right = button {
+                        match state {
+                            ElementState::Pressed => {
+                                window.set_cursor_grab(CursorGrabMode::Locked).unwrap();
+                                window.set_cursor_visible(false);
+                                app.camera_controller.right_down = true;
+                            }
+                            ElementState::Released => {
+                                window.set_cursor_grab(CursorGrabMode::None).unwrap();
+                                window.set_cursor_visible(true);
+                                app.camera_controller.right_down = false;
+                            }
+                        };
+                    };
+                }
                 _ => {}
             },
+            Event::DeviceEvent { event, .. } => {
+                if let DeviceEvent::MouseMotion { delta } = event {
+                    app.camera_controller.delta_mouse = Some([delta.0 as f32, delta.1 as f32]);
+                }
+            }
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
