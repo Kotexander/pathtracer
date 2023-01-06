@@ -1,5 +1,16 @@
+#![allow(dead_code)]
+
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    bytemuck::Pod,
+    bytemuck::Zeroable,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,

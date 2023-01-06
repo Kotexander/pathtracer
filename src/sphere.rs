@@ -1,17 +1,19 @@
 use crate::{bytes::Bytes, vector3::Vector3};
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(
+    Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, serde::Serialize, serde::Deserialize,
+)]
 pub struct Sphere {
     pos: Vector3,
     rad: f32,
     albedo: Vector3,
 }
-impl Sphere {
-    pub fn new(pos: Vector3, rad: f32, albedo: Vector3) -> Self {
-        Self { pos, rad, albedo }
-    }
-}
+// impl Sphere {
+//     pub fn new(pos: Vector3, rad: f32, albedo: Vector3) -> Self {
+//         Self { pos, rad, albedo }
+//     }
+// }
 
 impl Bytes for Sphere {
     fn bytes(&self) -> Vec<u8> {

@@ -1,0 +1,98 @@
+(
+    camera: (
+        pos: (
+            x: 0.0,
+            y: 1.0,
+            z: -5.0,
+        ),
+        yaw: 0.0,
+        pitch: 0.0,
+        vfov: 45.0,
+    ),
+    spheres: [
+        // center bottom
+        (
+            pos: (
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            albedo: ( // red
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            ),
+        ),
+        // center middle
+        (
+            pos: (
+                x: 0.0,
+                y: 2.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            albedo: ( // blue
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            ),
+        ),
+        // center top
+        (
+            pos: (
+                x: 0.0,
+                y: 4.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            albedo: ( // green
+                x: 0.0,
+                y: 0.5,
+                z: 0.0,
+            ),
+        ),
+        // right
+        (
+            pos: (
+                x: 3.0,
+                y: 0.0,
+                z: 0.0,
+            ),
+            rad: 0.5,
+            albedo: ( // black
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            ),
+        ),
+        // left
+        (
+            pos: (
+                x: -3.0,
+                y: -0.0,
+                z: -0.0,
+            ),
+            rad: 0.5,
+            albedo: ( // white
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            ),
+        ),
+        // ground
+        (
+            pos: (
+                x: -0.0,
+                y: -1001.0,
+                z: -0.0,
+            ),
+            rad: 1000.0,
+            albedo: ( // grey
+                x: 0.1,
+                y: 0.1,
+                z: 0.1,
+            ),
+        ),
+    ],
+)

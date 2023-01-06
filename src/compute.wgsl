@@ -150,10 +150,10 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
     return false;
 }
 fn miss(dir_y: f32) -> vec3<f32> {
-    return vec3<f32>(0.0, 0.0, 0.0);
+    // return vec3<f32>(0.0, 0.0, 0.0);
 
-    // let t = (dir_y + 1.0) / 2.0;
-    // return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
+    let t = (dir_y + 1.0) / 2.0;
+    return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
 }
 fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     var ray = ray;

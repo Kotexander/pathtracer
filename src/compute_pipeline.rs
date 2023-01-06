@@ -56,11 +56,18 @@ impl ComputePipeline {
     pub fn new(device: &wgpu::Device) -> Self {
         // FIXME: use include wgsl later instead of reading from file
         // let shader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
-        let file = std::fs::read_to_string("src/compute.wgsl").unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(file)),
-        });
+
+        #[cfg(not(debug_assertions))]
+        let shader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
+
+        #[cfg(debug_assertions)]
+        let shader = {
+            let file = std::fs::read_to_string("src/compute.wgsl").unwrap();
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Compute Shader"),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(file)),
+            })
+        };
 
         let bind_group_layout = device.create_bind_group_layout(&BIND_GROUP_LAYOUT_DESC);
 

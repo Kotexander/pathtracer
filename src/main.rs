@@ -29,14 +29,29 @@ use winit::{
     window::{CursorGrabMode, Window, WindowBuilder},
 };
 
-const WHITE: Vector3 = Vector3::new(1.0, 1.0, 1.0);
-const GREY: Vector3 = Vector3::new(0.1, 0.1, 0.1);
-const BLACK: Vector3 = Vector3::new(0.0, 0.0, 0.0);
+const VERTICIES: [[f32; 2]; 4] = [[-1.0, 1.0], [1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]];
+const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
 
-const BLUE: Vector3 = Vector3::new(0.0, 0.0, 1.0);
-const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
-const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
+// const WHITE: Vector3 = Vector3::new(1.0, 1.0, 1.0);
+// const GREY: Vector3 = Vector3::new(0.1, 0.1, 0.1);
+// const BLACK: Vector3 = Vector3::new(0.0, 0.0, 0.0);
 
+// const BLUE: Vector3 = Vector3::new(0.0, 0.0, 1.0);
+// const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
+// const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
+
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+struct Settings {
+    samples: i32,
+    depth: i32,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct Scene {
+    camera: CameraSettings,
+    spheres: Vec<Sphere>,
+}
+
+#[derive(Clone, Copy, Debug)]
 struct CameraController {
     forward: bool,
     backward: bool,
@@ -70,9 +85,6 @@ impl CameraController {
     }
 }
 
-const VERTICIES: [[f32; 2]; 4] = [[-1.0, 1.0], [1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]];
-const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
-
 struct App {
     ctx: WgpuContext,
     render_pipeline: RenderPipeline,
@@ -83,8 +95,7 @@ struct App {
     texture: Texture,
     sampler: wgpu::Sampler,
 
-    // spheres: Vec<Sphere>,
-    spheres: wgpu::Buffer,
+    spheres_buffer: wgpu::Buffer,
 
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
@@ -92,49 +103,53 @@ struct App {
 
     globals: Globals,
 
-    dirty: bool,
     samples: i32,
+    dirty: bool,
 }
 impl App {
     async fn new(window: &Window) -> Self {
-        let ctx = WgpuContext::new(window).await;
-        let render_pipeline = RenderPipeline::new(&ctx);
-        let compute_pipeline = ComputePipeline::new(&ctx.device);
-
-        let model = Model::new(&ctx.device, &VERTICIES, &INDECIES);
-
         let size = window.inner_size();
         let width = size.width;
         let height = size.height;
 
+        // wgpu stuff
+        let ctx = WgpuContext::new(window).await;
+        let render_pipeline = RenderPipeline::new(&ctx);
+        let compute_pipeline = ComputePipeline::new(&ctx.device);
+
+        // model that fills the entire screen
+        let model = Model::new(&ctx.device, &VERTICIES, &INDECIES);
+
+        // render texture and sampler
         let texture = Texture::new(&ctx.device, width, height);
         let sampler = ctx
             .device
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
-        let spheres = vec![
-            Sphere::new(Vector3::ZERO, 1.0, RED),            // center bottom
-            Sphere::new(Vector3::Y * 2.0, 1.0, BLUE),        // center middle
-            Sphere::new(Vector3::Y * 4.0, 1.0, GREEN),       // center top
-            Sphere::new(Vector3::X * 3.0, 0.5, BLACK),       // right
-            Sphere::new(Vector3::X * -3.0, 0.5, WHITE),      // left
-            Sphere::new(Vector3::Y * -1001.0, 1000.0, GREY), // ground
-        ];
-        let spheres = ctx
+        // load scene
+        let scene_content = std::fs::read_to_string("scene.ron")
+            .expect("The file \"scene.ron\" needs to be valid.");
+        let scene: Scene = ron::from_str(&scene_content)
+            .expect("The formatting of \"scene.ron\" needs to be correct.");
+        let camera_config = CameraConfig::new(scene.camera, width as f32 / height as f32);
+
+        // load settings
+        let settings_content = std::fs::read_to_string("settings.ron")
+            .expect("The file \"settings.ron\" needs to be valid.");
+        let settings: Settings = ron::from_str(&settings_content)
+            .expect("The formatting of \"settings.ron\" needs to be correct.");
+        let globals = Globals::new(rand::random(), settings.samples, settings.depth);
+
+        // get spheres onto the gpu
+        let spheres_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Spheres Buffer"),
-                contents: &spheres.bytes(),
+                contents: &scene.spheres.bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let camera_config = CameraConfig::new(
-            Vector3::new(0.0, 1.0, -5.0),
-            0.0f32.to_radians(),
-            0.0f32.to_radians(),
-            45.0f32.to_radians(),
-            width as f32 / height as f32,
-        );
+        // get camera onto the gpu
         let camera_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -142,11 +157,12 @@ impl App {
                 contents: &camera_config.build().bytes(),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
+
+        // camera controller for real time
         let camera_controller = CameraController::new();
 
-        let globals = Globals::new(rand::random(), 1, 10);
-        let dirty = true;
-        let samples = -1;
+        let samples = -1; // number of frames accumulated
+        let dirty = true; // if accumulated texture should be cleared
 
         Self {
             ctx,
@@ -155,7 +171,7 @@ impl App {
             model,
             texture,
             sampler,
-            spheres,
+            spheres_buffer,
             camera_config,
             camera_buffer,
             camera_controller,
@@ -164,12 +180,49 @@ impl App {
             samples,
         }
     }
+
+    fn reload_scene(&mut self) {
+        // reload scene
+        let scene_content = std::fs::read_to_string("scene.ron")
+            .expect("The file \"scene.ron\" needs to be valid.");
+        let scene: Scene = ron::from_str(&scene_content)
+            .expect("The formatting of \"scene.ron\" needs to be correct.");
+        let camera_config = CameraConfig::new(scene.camera, self.camera_config.aspect);
+
+        // recreate spheres buffer
+        let spheres_buffer =
+            self.ctx
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Spheres Buffer"),
+                    contents: &scene.spheres.bytes(),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+        // update app
+        self.camera_config = camera_config;
+        self.spheres_buffer = spheres_buffer;
+        self.update_camera();
+    }
+    fn reload_settings(&mut self) {
+        // reload settings
+        let settings_content = std::fs::read_to_string("settings.ron")
+            .expect("The file \"settings.ron\" needs to be valid.");
+        let settings: Settings = ron::from_str(&settings_content)
+            .expect("The formatting of \"settings.ron\" needs to be correct.");
+
+        self.globals.samples = settings.samples;
+        self.globals.depth = settings.depth;
+    }
+
     fn render(&mut self) {
+        // window view
         let output = self.ctx.surface.get_current_texture().unwrap();
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        // begin encoding
         let mut encoder = self
             .ctx
             .device
@@ -177,15 +230,19 @@ impl App {
                 label: Some("Encoder"),
             });
 
+        // reset renderer if dirty
         if self.dirty {
             self.dirty = false;
             self.samples = 0;
             self.clear(&mut encoder);
         }
 
+        // accumulate one frame
         self.compute_pass(&mut encoder);
+        // draw accumulated texuter
         self.render_pass(&mut encoder, &view);
 
+        // finish frame
         self.ctx.queue.submit([encoder.finish()]);
         output.present();
     }
@@ -242,7 +299,7 @@ impl App {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.spheres,
+                            buffer: &self.spheres_buffer,
                             offset: 0,
                             size: None,
                         }),
@@ -349,6 +406,120 @@ impl App {
         self.update_camera();
     }
 
+    fn input(&mut self, key: &VirtualKeyCode, state: &ElementState) {
+        let is_down = matches!(state, ElementState::Pressed);
+        match key {
+            VirtualKeyCode::W => {
+                self.camera_controller.forward = is_down;
+            }
+            VirtualKeyCode::S => {
+                self.camera_controller.backward = is_down;
+            }
+
+            VirtualKeyCode::A => {
+                self.camera_controller.strafe_left = is_down;
+            }
+            VirtualKeyCode::D => {
+                self.camera_controller.strafe_right = is_down;
+            }
+
+            VirtualKeyCode::LShift => {
+                self.camera_controller.shift_down = is_down;
+            }
+            VirtualKeyCode::LControl => {
+                self.camera_controller.ctrl_down = is_down;
+            }
+
+            VirtualKeyCode::E => {
+                self.camera_controller.up = is_down;
+            }
+            VirtualKeyCode::Q => {
+                self.camera_controller.down = is_down;
+            }
+            _ => {}
+        }
+
+        if let ElementState::Pressed = state {
+            match key {
+                VirtualKeyCode::R => {
+                    self.reload_scene();
+                }
+                VirtualKeyCode::F => {
+                    self.reload_settings();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn update(&mut self, dt: f32) {
+        let mut cam_dirty = false; // if camera buffer needs to be recreated at the end
+        let sensitivity = 0.5; // mouse sensitivity
+
+        // movement speed
+        let mut speed = 5.0;
+        if self.camera_controller.shift_down {
+            // shift to speed up
+            speed *= 2.0;
+        }
+        if self.camera_controller.ctrl_down {
+            // ctrl to slow down
+            speed /= 2.0;
+        }
+
+        if self.camera_controller.right_down {
+            // if right mouse button is down
+            if let Some(delta) = self.camera_controller.delta_mouse {
+                // if mouse was moved from previous frame
+                self.camera_config.yaw += delta[0] * sensitivity * dt;
+                self.camera_config.pitch -= delta[1] * sensitivity * dt;
+
+                // clamp pitch
+                // camera breaks when looking directly up or down
+                self.camera_config.pitch = self
+                    .camera_config
+                    .pitch
+                    .clamp(-80.0f32.to_radians(), 80.0f32.to_radians());
+
+                cam_dirty = true;
+                self.camera_controller.delta_mouse = None;
+            }
+        }
+
+        let cam_dir = self.camera_config.dir();
+        let cam_right = cross(&camera::UP, &cam_dir);
+
+        let mut offset = Vector3::ZERO;
+        if self.camera_controller.forward {
+            offset += cam_dir;
+        }
+        if self.camera_controller.backward {
+            offset -= cam_dir;
+        }
+        if self.camera_controller.strafe_left {
+            offset -= cam_right;
+        }
+        if self.camera_controller.strafe_right {
+            offset += cam_right;
+        }
+        if self.camera_controller.up {
+            offset.y += 1.0;
+        }
+        if self.camera_controller.down {
+            offset.y -= 1.0;
+        }
+        if offset != Vector3::ZERO {
+            offset.normalize();
+            self.camera_config.pos += offset * speed * dt;
+            cam_dirty = true;
+        }
+
+        // update camera if neccesary
+        if cam_dirty {
+            self.update_camera();
+        }
+    }
+
     fn update_camera(&mut self) {
         self.camera_buffer =
             self.ctx
@@ -371,100 +542,6 @@ impl App {
 
     // img.save("Renders/image.png").unwrap();
     // }
-
-    fn input(&mut self, key: &VirtualKeyCode, state: &ElementState) {
-        let state = matches!(state, ElementState::Pressed);
-        match key {
-            VirtualKeyCode::W => {
-                self.camera_controller.forward = state;
-            }
-            VirtualKeyCode::S => {
-                self.camera_controller.backward = state;
-            }
-
-            VirtualKeyCode::A => {
-                self.camera_controller.strafe_left = state;
-            }
-            VirtualKeyCode::D => {
-                self.camera_controller.strafe_right = state;
-            }
-
-            VirtualKeyCode::LShift => {
-                self.camera_controller.shift_down = state;
-            }
-            VirtualKeyCode::LControl => {
-                self.camera_controller.ctrl_down = state;
-            }
-
-            VirtualKeyCode::E => {
-                self.camera_controller.up = state;
-            }
-            VirtualKeyCode::Q => {
-                self.camera_controller.down = state;
-            }
-            _ => {}
-        }
-    }
-
-    fn update(&mut self, dt: f32) {
-        let mut cam_dirty = false;
-        let sensitivity = 0.005;
-
-        let mut speed = 5.0;
-        if self.camera_controller.shift_down {
-            speed *= 2.0;
-        }
-        if self.camera_controller.ctrl_down {
-            speed /= 2.0;
-        }
-
-        if self.camera_controller.right_down {
-            if let Some(delta) = self.camera_controller.delta_mouse {
-                self.camera_config.yaw += delta[0] * sensitivity;
-                self.camera_config.pitch -= delta[1] * sensitivity;
-
-                self.camera_config.pitch = self
-                    .camera_config
-                    .pitch
-                    .clamp(-80.0f32.to_radians(), 80.0f32.to_radians());
-
-                cam_dirty = true;
-
-                self.camera_controller.delta_mouse = None;
-            }
-        }
-
-        let cam_dir = self.camera_config.dir();
-        let right = cross(&camera::UP, &cam_dir);
-
-        let mut offset = Vector3::ZERO;
-        if self.camera_controller.forward {
-            offset += cam_dir;
-        }
-        if self.camera_controller.backward {
-            offset -= cam_dir;
-        }
-        if self.camera_controller.strafe_left {
-            offset -= right;
-        }
-        if self.camera_controller.strafe_right {
-            offset += right;
-        }
-        if self.camera_controller.up {
-            offset.y += 1.0;
-        }
-        if self.camera_controller.down {
-            offset.y -= 1.0;
-        }
-        if offset != Vector3::ZERO {
-            offset.normalize();
-            self.camera_config.pos += offset * speed * dt;
-            cam_dirty = true;
-        }
-        if cam_dirty {
-            self.update_camera();
-        }
-    }
 }
 
 fn main() {
@@ -477,7 +554,7 @@ fn main() {
     let mut app = pollster::block_on(App::new(&window));
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        *control_flow = ControlFlow::Poll;
 
         match event {
             Event::WindowEvent {
