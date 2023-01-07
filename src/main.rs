@@ -40,6 +40,18 @@ const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
 // const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
 // const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
+fn load_ron<P, T>(path: P) -> T
+where
+    P: AsRef<std::path::Path>,
+    T: serde::de::DeserializeOwned,
+{
+    let content = std::fs::read_to_string(path.as_ref()).expect(&format!(
+        "the file {} should be able to be read",
+        path.as_ref().to_string_lossy()
+    ));
+    ron::from_str::<T>(&content).expect("the formatting of the file should be correct")
+}
+
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 struct Settings {
     samples: i32,
@@ -127,17 +139,11 @@ impl App {
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
         // load scene
-        let scene_content = std::fs::read_to_string("scene.ron")
-            .expect("The file \"scene.ron\" needs to be valid.");
-        let scene: Scene = ron::from_str(&scene_content)
-            .expect("The formatting of \"scene.ron\" needs to be correct.");
+        let scene: Scene = load_ron("scene.ron");
         let camera_config = CameraConfig::new(scene.camera, width as f32 / height as f32);
 
         // load settings
-        let settings_content = std::fs::read_to_string("settings.ron")
-            .expect("The file \"settings.ron\" needs to be valid.");
-        let settings: Settings = ron::from_str(&settings_content)
-            .expect("The formatting of \"settings.ron\" needs to be correct.");
+        let settings: Settings = load_ron("settings.ron");
         let globals = Globals::new(rand::random(), settings.samples, settings.depth);
 
         // get spheres onto the gpu
@@ -183,10 +189,7 @@ impl App {
 
     fn reload_scene(&mut self) {
         // reload scene
-        let scene_content = std::fs::read_to_string("scene.ron")
-            .expect("The file \"scene.ron\" needs to be valid.");
-        let scene: Scene = ron::from_str(&scene_content)
-            .expect("The formatting of \"scene.ron\" needs to be correct.");
+        let scene: Scene = load_ron("scene.ron");
         let camera_config = CameraConfig::new(scene.camera, self.camera_config.aspect);
 
         // recreate spheres buffer
@@ -206,10 +209,7 @@ impl App {
     }
     fn reload_settings(&mut self) {
         // reload settings
-        let settings_content = std::fs::read_to_string("settings.ron")
-            .expect("The file \"settings.ron\" needs to be valid.");
-        let settings: Settings = ron::from_str(&settings_content)
-            .expect("The formatting of \"settings.ron\" needs to be correct.");
+        let settings: Settings = load_ron("settings.ron");
 
         self.globals.samples = settings.samples;
         self.globals.depth = settings.depth;
@@ -217,7 +217,11 @@ impl App {
 
     fn render(&mut self) {
         // window view
-        let output = self.ctx.surface.get_current_texture().unwrap();
+        let output = self
+            .ctx
+            .surface
+            .get_current_texture()
+            .expect("the surface texture is required to present path tracing in real time");
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -549,7 +553,7 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Path Tracer")
         .build(&event_loop)
-        .unwrap();
+        .expect("a window is required for the path tracer to work");
 
     let mut app = pollster::block_on(App::new(&window));
 
@@ -587,12 +591,19 @@ fn main() {
                     if let MouseButton::Right = button {
                         match state {
                             ElementState::Pressed => {
-                                window.set_cursor_grab(CursorGrabMode::Locked).unwrap();
                                 window.set_cursor_visible(false);
+                                window
+                                    .set_cursor_grab(CursorGrabMode::Locked)
+                                    .or_else(|_err| {
+                                        window.set_cursor_grab(CursorGrabMode::Confined)
+                                    })
+                                    .expect("the cursor should be able to lock");
                                 app.camera_controller.right_down = true;
                             }
                             ElementState::Released => {
-                                window.set_cursor_grab(CursorGrabMode::None).unwrap();
+                                window
+                                    .set_cursor_grab(CursorGrabMode::None)
+                                    .expect("the cursor should be able to unlock");
                                 window.set_cursor_visible(true);
                                 app.camera_controller.right_down = false;
                             }

@@ -46,10 +46,20 @@ pub struct RenderPipeline {
 }
 impl RenderPipeline {
     pub fn new(ctx: &WgpuContext) -> Self {
+        #[cfg(not(debug_assertions))]
         let shader = ctx
             .device
-            .create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+            .create_shader_module(wgpu::include_wgsl!("render.wgsl"));
 
+        #[cfg(debug_assertions)]
+        let shader = {
+            let file = std::fs::read_to_string("src/render.wgsl").unwrap();
+            ctx.device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Render Shader"),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(file)),
+                })
+        };
         let bind_group_layout = ctx.device.create_bind_group_layout(&BIND_GROUP_LAYOUT_DESC);
 
         let pipeline_layout = ctx

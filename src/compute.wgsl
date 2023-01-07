@@ -151,6 +151,7 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
 }
 fn miss(dir_y: f32) -> vec3<f32> {
     // return vec3<f32>(0.0, 0.0, 0.0);
+    // return vec3<f32>(1.0, 1.0, 1.0);
 
     let t = (dir_y + 1.0) / 2.0;
     return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
@@ -158,8 +159,8 @@ fn miss(dir_y: f32) -> vec3<f32> {
 fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     var ray = ray;
 
-    var colour = vec3<f32>(0.0, 0.0, 0.0);
-    var multiplier = 1.0;
+    var colour = vec3<f32>(1.0, 1.0, 1.0);
+    var light = vec3<f32>(0.0, 0.0, 0.0);
 
     let t_min = 0.001;
     let t_max = 1.0 / 0.0;
@@ -169,18 +170,14 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
         var hit_record: HitRecord;
         if closet_hit(ray, t_min, t_max, &hit_record) {
             ray = ray_new(hit_record.pos, normalize(hit_record.norm + rand_in_sphere(seed)));
-            colour += spheres[hit_record.sphere_index].albedo * multiplier;
+            colour *= spheres[hit_record.sphere_index].albedo;
         }
         else {
-            colour += miss(ray.dir.y) * multiplier;
+            light = miss(ray.dir.y);
             break;
         }
-        multiplier *= 0.25;
     }
-    if i == globals.depth {
-        return vec3<f32>(0.0, 0.0, 0.0);
-    }
-    return colour;
+    return colour * light;
 }
 
 struct In {
