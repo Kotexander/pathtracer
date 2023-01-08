@@ -1,5 +1,5 @@
 // --- Random ---
-fn randv(co: vec2<f32>) -> f32{
+fn vec2rand(co: vec2<f32>) -> f32{
   return fract(sin(dot(co.xy ,vec2<f32>(12.9898,78.233))) * 43758.5453);
 }
 fn randu(seed: ptr<function, u32>) -> u32 {
@@ -12,6 +12,9 @@ fn randu(seed: ptr<function, u32>) -> u32 {
 }
 fn randf(seed: ptr<function, u32>) -> f32 {
     return f32(randu(seed)) / f32(0xffffffffu);
+}
+fn randf_range(seed: ptr<function, u32>, min: f32, max: f32) -> f32{
+    return randf(seed) * (max - min) + min;
 }
 fn rand_in_sphere(seed: ptr<function, u32>) -> vec3<f32> {
     loop {
@@ -77,7 +80,8 @@ struct HitRecord {
 struct Sphere {
     pos: vec3<f32>,
     rad: f32,
-    albedo: vec3<f32>,   
+    albedo: vec3<f32>,
+    roughness: f32
 }
 fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
     let pos = ray.pos - sphere.pos;
@@ -169,8 +173,14 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     for (; i < globals.depth; i++) {
         var hit_record: HitRecord;
         if closet_hit(ray, t_min, t_max, &hit_record) {
-            ray = ray_new(hit_record.pos, normalize(hit_record.norm + rand_in_sphere(seed)));
-            colour *= spheres[hit_record.sphere_index].albedo;
+            let sphere = spheres[hit_record.sphere_index];
+            let rand_vec = vec3<f32>(
+                randf_range(seed, -0.5, 0.5),
+                randf_range(seed, -0.5, 0.5),
+                randf_range(seed, -0.5, 0.5)
+            );
+            ray = ray_new(hit_record.pos, normalize(reflect(ray.dir, hit_record.norm + rand_vec * sphere.roughness)));
+            colour *= sphere.albedo;
         }
         else {
             light = miss(ray.dir.y);
@@ -210,7 +220,7 @@ fn main( in: In ) {
     ndc.y = -(uv.y * 2.0 - 1.0);
 
     // seed is combined from the cpu plus invocation pixel coord
-    var local_seed = globals.seed + u32(randv(ndc) * f32(0xffffffffu));
+    var local_seed = globals.seed + u32(vec2rand(ndc) * f32(0xffffffffu));
 
     // final accumulated colour
     var final_colour = vec3<f32>(0.0, 0.0, 0.0);

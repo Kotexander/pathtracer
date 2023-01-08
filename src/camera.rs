@@ -76,24 +76,24 @@ impl Camera {
 }
 impl Bytes for Camera {
     fn bytes(&self) -> Vec<u8> {
-        let b_p = bytemuck::bytes_of(&self.pos);
-        let b_h = bytemuck::bytes_of(&self.horizontal);
-        let b_v = bytemuck::bytes_of(&self.vertical);
-        let b_c = bytemuck::bytes_of(&self.center);
-        let b_4 = [0u8; 4];
+        let b_pos = bytemuck::bytes_of(&self.pos);
+        let b_horizontal = bytemuck::bytes_of(&self.horizontal);
+        let b_vertical = bytemuck::bytes_of(&self.vertical);
+        let b_center = bytemuck::bytes_of(&self.center);
+        let byte = [0u8; 4];
         let mut v = vec![];
 
-        v.extend(b_p);
-        v.extend(b_4.clone());
+        v.extend(b_pos);
+        v.extend(byte.clone());
 
-        v.extend(b_h);
-        v.extend(b_4.clone());
+        v.extend(b_horizontal);
+        v.extend(byte.clone());
 
-        v.extend(b_v);
-        v.extend(b_4.clone());
+        v.extend(b_vertical);
+        v.extend(byte.clone());
 
-        v.extend(b_c);
-        v.extend(b_4.clone());
+        v.extend(b_center);
+        v.extend(byte.clone());
 
         v
     }

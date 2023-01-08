@@ -20,9 +20,10 @@
             rad: 1.0,
             albedo: ( // red
                 x: 1.0,
-                y: 0.0,
-                z: 0.0,
+                y: 0.1,
+                z: 0.1,
             ),
+            roughness: 0.9,
         ),
         // center middle
         (
@@ -33,10 +34,11 @@
             ),
             rad: 1.0,
             albedo: ( // blue
-                x: 0.0,
-                y: 0.0,
+                x: 0.1,
+                y: 0.1,
                 z: 1.0,
             ),
+            roughness: 0.9,
         ),
         // center top
         (
@@ -47,10 +49,11 @@
             ),
             rad: 1.0,
             albedo: ( // green
-                x: 0.0,
+                x: 0.1,
                 y: 1.0,
-                z: 0.0,
+                z: 0.1,
             ),
+            roughness: 0.9,
         ),
         // right
         (
@@ -65,6 +68,7 @@
                 y: 0.1,
                 z: 0.1,
             ),
+            roughness: 1.0,
         ),
         // left
         (
@@ -79,6 +83,7 @@
                 y: 1.0,
                 z: 1.0,
             ),
+            roughness: 0.0,
         ),
         // ground
         (
@@ -93,6 +98,7 @@
                 y: 0.5,
                 z: 0.5,
             ),
+            roughness: 0.1,
         ),
     ],
 )

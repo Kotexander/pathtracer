@@ -54,9 +54,6 @@ pub struct ComputePipeline {
 }
 impl ComputePipeline {
     pub fn new(device: &wgpu::Device) -> Self {
-        // FIXME: use include wgsl later instead of reading from file
-        // let shader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
-
         #[cfg(not(debug_assertions))]
         let shader = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
 
