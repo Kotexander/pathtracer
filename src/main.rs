@@ -2,6 +2,7 @@ mod bytes;
 mod camera;
 mod compute_pipeline;
 mod globals;
+mod materials;
 mod model;
 mod ray;
 mod render_pipeline;
@@ -14,6 +15,7 @@ use bytes::*;
 use camera::*;
 use compute_pipeline::*;
 use globals::*;
+use materials::*;
 use model::*;
 use render_pipeline::*;
 use sphere::*;
@@ -61,6 +63,11 @@ struct Settings {
 struct Scene {
     camera: CameraSettings,
     spheres: Vec<Sphere>,
+
+    lights: Vec<Light>,
+    lambertians: Vec<Lambertian>,
+    metals: Vec<Metal>,
+    // glass: Vec<Glass>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -108,7 +115,10 @@ struct App {
     sampler: wgpu::Sampler,
 
     spheres_buffer: wgpu::Buffer,
-
+    lights_buffer: wgpu::Buffer,
+    lambertians_buffer: wgpu::Buffer,
+    metals_buffer: wgpu::Buffer,
+    // glass_buffer: wgpu::Buffer,
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
     camera_controller: CameraController,
@@ -146,7 +156,7 @@ impl App {
         let settings: Settings = load_ron("settings.ron");
         let globals = Globals::new(rand::random(), settings.samples, settings.depth);
 
-        // get spheres onto the gpu
+        // get spheres and materials onto the gpu
         let spheres_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -154,6 +164,34 @@ impl App {
                 contents: &scene.spheres.bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
+        let lights_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Lights Buffer"),
+                contents: &scene.lights.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+        let lambertians_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Lambertians Buffer"),
+                contents: &scene.lambertians.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+        let metals_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Metals Buffer"),
+                contents: &scene.metals.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+        // let glass_buffer = ctx
+        //     .device
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         label: Some("Glass Buffer"),
+        //         contents: &scene.glass.bytes(),
+        //         usage: wgpu::BufferUsages::STORAGE,
+        //     });
 
         // get camera onto the gpu
         let camera_buffer = ctx
@@ -178,6 +216,10 @@ impl App {
             texture,
             sampler,
             spheres_buffer,
+            lights_buffer,
+            lambertians_buffer,
+            metals_buffer,
+            // glass_buffer,
             camera_config,
             camera_buffer,
             camera_controller,
@@ -192,7 +234,7 @@ impl App {
         let scene: Scene = load_ron("scene.ron");
         let camera_config = CameraConfig::new(scene.camera, self.camera_config.aspect);
 
-        // recreate spheres buffer
+        // recreate spheres and matrial buffers
         let spheres_buffer =
             self.ctx
                 .device
@@ -201,10 +243,46 @@ impl App {
                     contents: &scene.spheres.bytes(),
                     usage: wgpu::BufferUsages::STORAGE,
                 });
+        let lights_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Lights Buffer"),
+                contents: &scene.lights.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+        let lambertians_buffer =
+            self.ctx
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Lambertians Buffer"),
+                    contents: &scene.lambertians.bytes(),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+        let metals_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Metals Buffer"),
+                contents: &scene.metals.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+        // let glass_buffer = self
+        // .ctx
+        // .device
+        // .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        // label: Some("Glass Buffer"),
+        // contents: &scene.glass.bytes(),
+        // usage: wgpu::BufferUsages::STORAGE,
+        // });
 
         // update app
         self.camera_config = camera_config;
         self.spheres_buffer = spheres_buffer;
+        self.lights_buffer = lights_buffer;
+        self.lambertians_buffer = lambertians_buffer;
+        self.metals_buffer = metals_buffer;
+        // self.glass_buffer = glass_buffer;
         self.update_camera();
     }
     fn reload_settings(&mut self) {
@@ -288,10 +366,12 @@ impl App {
                 label: None,
                 layout: self.compute_pipeline.bind_group_layout(),
                 entries: &[
+                    // output texture
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::TextureView(self.texture.view()),
                     },
+                    // camera
                     wgpu::BindGroupEntry {
                         binding: 1,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
@@ -300,22 +380,60 @@ impl App {
                             size: None,
                         }),
                     },
+                    // globals
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.spheres_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                             buffer: &seed_buffer,
                             offset: 0,
                             size: None,
                         }),
                     },
+                    // spheres
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.spheres_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    // lights
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.lights_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    // lambertians
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.lambertians_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    // metals
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.metals_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
+                    // // glass
+                    // wgpu::BindGroupEntry {
+                    //     binding: 7,
+                    //     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    //         buffer: &self.glass_buffer,
+                    //         offset: 0,
+                    //         size: None,
+                    //     }),
+                    // },
                 ],
             });
 

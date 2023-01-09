@@ -80,8 +80,8 @@ struct HitRecord {
 struct Sphere {
     pos: vec3<f32>,
     rad: f32,
-    albedo: vec3<f32>,
-    roughness: f32
+    mat_type: u32,
+    mat_index: u32
 }
 fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
     let pos = ray.pos - sphere.pos;
@@ -112,6 +112,21 @@ fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_re
     return true;
 }
 // --- !Sphere ---
+// --- Materials ---
+struct Light {
+    colour: vec3<f32>,
+}
+struct Lambertian {
+    albedo: vec3<f32>,
+}
+struct Metal {
+    albedo: vec3<f32>,
+    roughness: f32,
+}
+struct Glass {
+    ir: f32
+}
+// --- !Materials ---
 // --- Globals ---
 struct Globals {
     seed: u32,
@@ -127,10 +142,19 @@ var tex: texture_storage_2d<rgba32float,read_write>;
 var<uniform> camera: Camera;
 
 @group(0) @binding(2)
-var<storage> spheres: array<Sphere>;
+var<uniform> globals: Globals;
 
 @group(0) @binding(3)
-var<uniform> globals: Globals;
+var<storage> spheres: array<Sphere>;
+
+@group(0) @binding(4)
+var<storage> lights: array<Light>;
+@group(0) @binding(5)
+var<storage> lambertians: array<Lambertian>;
+@group(0) @binding(6)
+var<storage> metals: array<Metal>;
+// @group(0) @binding(7)
+// var<storage> glass: array<Glass>;
 
 fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
     let len = i32(arrayLength(&spheres));
@@ -169,22 +193,45 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     let t_min = 0.001;
     let t_max = 1.0 / 0.0;
 
+    var not_hit_light = true;
+
     var i = 0;
-    for (; i < globals.depth; i++) {
+    while ( i < globals.depth && not_hit_light) {
         var hit_record: HitRecord;
         if closet_hit(ray, t_min, t_max, &hit_record) {
             let sphere = spheres[hit_record.sphere_index];
-            let rand_vec = vec3<f32>(
-                randf_range(seed, -0.5, 0.5),
-                randf_range(seed, -0.5, 0.5),
-                randf_range(seed, -0.5, 0.5)
-            );
-            ray = ray_new(hit_record.pos, normalize(reflect(ray.dir, hit_record.norm + rand_vec * sphere.roughness)));
-            colour *= sphere.albedo;
+            switch sphere.mat_type {
+                // light
+                case 0u: {
+                    let material = lights[sphere.mat_index];
+                    light = material.colour;
+                    not_hit_light = false;
+                }
+                // lambertian
+                case 1u: {
+                    let material = lambertians[sphere.mat_index];
+                    ray = ray_new(hit_record.pos, normalize(hit_record.norm + rand_in_sphere(seed)));
+                    colour *= material.albedo;
+                }
+                // metal 
+                case 2u: {
+                    let material = metals[sphere.mat_index];
+                    let rand_vec = vec3<f32>(
+                        randf_range(seed, -0.5, 0.5),
+                        randf_range(seed, -0.5, 0.5),
+                        randf_range(seed, -0.5, 0.5)
+                    );
+                    ray = ray_new(hit_record.pos, normalize(reflect(ray.dir, hit_record.norm + rand_vec * material.roughness)));
+                    colour *= material.albedo;
+                }
+                default {
+                    return vec3<f32>(0.0, 0.0, 0.0);
+                }
+            }
         }
         else {
             light = miss(ray.dir.y);
-            break;
+            not_hit_light = false;
         }
     }
     return colour * light;
