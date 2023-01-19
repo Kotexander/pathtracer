@@ -4,7 +4,7 @@ pub mod indecies {
     pub const LIGHT: u32 = 0;
     pub const LAMBERTIAN: u32 = 1;
     pub const METAL: u32 = 2;
-    // pub const GLASS: u32 = 3;
+    pub const GLASS: u32 = 3;
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
@@ -56,12 +56,12 @@ impl Bytes for Metal {
         v
     }
 }
-// #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
-// pub struct Glass {
-//     ir: f32,
-// }
-// impl Bytes for Glass {
-//     fn bytes(&self) -> Vec<u8> {
-//         Vec::from(bytemuck::bytes_of(&self.ir))
-//     }
-// }
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Glass {
+    ir: f32,
+}
+impl Bytes for Glass {
+    fn bytes(&self) -> Vec<u8> {
+        Vec::from(bytemuck::bytes_of(&self.ir))
+    }
+}

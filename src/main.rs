@@ -67,7 +67,7 @@ struct Scene {
     lights: Vec<Light>,
     lambertians: Vec<Lambertian>,
     metals: Vec<Metal>,
-    // glass: Vec<Glass>,
+    glass: Vec<Glass>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -118,7 +118,7 @@ struct App {
     lights_buffer: wgpu::Buffer,
     lambertians_buffer: wgpu::Buffer,
     metals_buffer: wgpu::Buffer,
-    // glass_buffer: wgpu::Buffer,
+    glass_buffer: wgpu::Buffer,
     camera_config: CameraConfig,
     camera_buffer: wgpu::Buffer,
     camera_controller: CameraController,
@@ -185,13 +185,13 @@ impl App {
                 contents: &scene.metals.bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
-        // let glass_buffer = ctx
-        //     .device
-        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //         label: Some("Glass Buffer"),
-        //         contents: &scene.glass.bytes(),
-        //         usage: wgpu::BufferUsages::STORAGE,
-        //     });
+        let glass_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Glass Buffer"),
+                contents: &scene.glass.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
 
         // get camera onto the gpu
         let camera_buffer = ctx
@@ -219,7 +219,7 @@ impl App {
             lights_buffer,
             lambertians_buffer,
             metals_buffer,
-            // glass_buffer,
+            glass_buffer,
             camera_config,
             camera_buffer,
             camera_controller,
@@ -267,14 +267,14 @@ impl App {
                 contents: &scene.metals.bytes(),
                 usage: wgpu::BufferUsages::STORAGE,
             });
-        // let glass_buffer = self
-        // .ctx
-        // .device
-        // .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        // label: Some("Glass Buffer"),
-        // contents: &scene.glass.bytes(),
-        // usage: wgpu::BufferUsages::STORAGE,
-        // });
+        let glass_buffer = self
+            .ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Glass Buffer"),
+                contents: &scene.glass.bytes(),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
 
         // update app
         self.camera_config = camera_config;
@@ -282,7 +282,7 @@ impl App {
         self.lights_buffer = lights_buffer;
         self.lambertians_buffer = lambertians_buffer;
         self.metals_buffer = metals_buffer;
-        // self.glass_buffer = glass_buffer;
+        self.glass_buffer = glass_buffer;
         self.update_camera();
     }
     fn reload_settings(&mut self) {
@@ -425,15 +425,15 @@ impl App {
                             size: None,
                         }),
                     },
-                    // // glass
-                    // wgpu::BindGroupEntry {
-                    //     binding: 7,
-                    //     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    //         buffer: &self.glass_buffer,
-                    //         offset: 0,
-                    //         size: None,
-                    //     }),
-                    // },
+                    // glass
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.glass_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
+                    },
                 ],
             });
 

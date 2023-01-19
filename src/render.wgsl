@@ -35,8 +35,8 @@ fn correct(colour: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    // return textureSample(tex, sam, in.uv);
     let colour = textureSample(tex, sam, in.uv);
     let rgb = colour.xyz / f32(samples);
-    return vec4<f32>(correct(rgb), colour.w);
+    // return vec4<f32>(correct(rgb), colour.w);
+    return vec4<f32>(rgb, colour.w);
 }
