@@ -9,7 +9,19 @@ pub mod indecies {
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Light {
-    colour: Vector3,
+    pub colour: Vector3,
+}
+impl Light {
+    pub const fn new(colour: Vector3) -> Self {
+        Self { colour }
+    }
+}
+impl Default for Light {
+    fn default() -> Self {
+        Self {
+            colour: Vector3::ONE,
+        }
+    }
 }
 impl Bytes for Light {
     fn bytes(&self) -> Vec<u8> {
@@ -25,7 +37,20 @@ impl Bytes for Light {
 }
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Lambertian {
-    albedo: Vector3,
+    pub albedo: Vector3,
+}
+
+impl Lambertian {
+    pub const fn new(albedo: Vector3) -> Self {
+        Self { albedo }
+    }
+}
+impl Default for Lambertian {
+    fn default() -> Self {
+        Self {
+            albedo: Vector3::new(0.5, 0.5, 0.5),
+        }
+    }
 }
 impl Bytes for Lambertian {
     fn bytes(&self) -> Vec<u8> {
@@ -41,8 +66,22 @@ impl Bytes for Lambertian {
 }
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Metal {
-    albedo: Vector3,
-    roughness: f32,
+    pub albedo: Vector3,
+    pub roughness: f32,
+}
+
+impl Metal {
+    pub const fn new(albedo: Vector3, roughness: f32) -> Self {
+        Self { albedo, roughness }
+    }
+}
+impl Default for Metal {
+    fn default() -> Self {
+        Self {
+            albedo: Vector3::new(0.5, 0.5, 0.5),
+            roughness: 0.5,
+        }
+    }
 }
 impl Bytes for Metal {
     fn bytes(&self) -> Vec<u8> {
@@ -58,7 +97,18 @@ impl Bytes for Metal {
 }
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Glass {
-    ir: f32,
+    pub ir: f32,
+}
+
+impl Glass {
+    pub const fn new(ir: f32) -> Self {
+        Self { ir }
+    }
+}
+impl Default for Glass {
+    fn default() -> Self {
+        Self { ir: 1.5 }
+    }
 }
 impl Bytes for Glass {
     fn bytes(&self) -> Vec<u8> {

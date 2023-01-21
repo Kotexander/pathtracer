@@ -5,11 +5,22 @@ use crate::{bytes::Bytes, vector3::Vector3};
     Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable, serde::Serialize, serde::Deserialize,
 )]
 pub struct Sphere {
-    pos: Vector3,
-    rad: f32,
+    pub pos: Vector3,
+    pub rad: f32,
 
-    mat_type: u32,
-    mat_index: u32,
+    pub mat_type: u32,
+    pub mat_index: u32,
+}
+
+impl Sphere {
+    pub const fn new(pos: Vector3, rad: f32, mat_type: u32, mat_index: u32) -> Self {
+        Self {
+            pos,
+            rad,
+            mat_type,
+            mat_index,
+        }
+    }
 }
 
 impl Bytes for Sphere {

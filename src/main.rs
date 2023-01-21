@@ -1,24 +1,12 @@
-mod bytes;
-mod camera;
-mod compute_pipeline;
-mod globals;
-mod materials;
-mod model;
-mod ray;
-mod render_pipeline;
-mod sphere;
-mod texture;
-mod vector3;
-mod wgpu_context;
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use bytes::*;
 use camera::*;
 use compute_pipeline::*;
 use globals::*;
-use materials::*;
 use model::*;
+use pathtracer::*;
 use render_pipeline::*;
-use sphere::*;
 use texture::*;
 use vector3::*;
 use wgpu::util::DeviceExt;
@@ -42,32 +30,10 @@ const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
 // const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
 // const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
 
-fn load_ron<P, T>(path: P) -> T
-where
-    P: AsRef<std::path::Path>,
-    T: serde::de::DeserializeOwned,
-{
-    let content = std::fs::read_to_string(path.as_ref()).expect(&format!(
-        "the file {} should be able to be read",
-        path.as_ref().to_string_lossy()
-    ));
-    ron::from_str::<T>(&content).expect("the formatting of the file should be correct")
-}
-
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 struct Settings {
     samples: i32,
     depth: i32,
-}
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-struct Scene {
-    camera: CameraSettings,
-    spheres: Vec<Sphere>,
-
-    lights: Vec<Light>,
-    lambertians: Vec<Lambertian>,
-    metals: Vec<Metal>,
-    glass: Vec<Glass>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -295,11 +261,22 @@ impl App {
 
     fn render(&mut self) {
         // window view
-        let output = self
-            .ctx
-            .surface
-            .get_current_texture()
-            .expect("the surface texture is required to present path tracing in real time");
+        let output = match self.ctx.surface.get_current_texture() {
+            Ok(output) => output,
+            Err(e) => {
+                match e {
+                    wgpu::SurfaceError::Lost => self
+                        .ctx
+                        .surface
+                        .configure(&self.ctx.device, &self.ctx.surface_config),
+                    wgpu::SurfaceError::OutOfMemory => panic!("Out of memory"),
+                    _ => {
+                        println!("{e:?}")
+                    }
+                }
+                return;
+            }
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -667,6 +644,9 @@ impl App {
 }
 
 fn main() {
+    #[cfg(debug_assertions)]
+    simple_logger::init_with_level(log::Level::Warn).unwrap();
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Path Tracer")

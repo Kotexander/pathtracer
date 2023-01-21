@@ -1,0 +1,179 @@
+(
+    camera: (
+        pos: (
+            x: 0.0,
+            y: 1.0,
+            z: -5.0,
+        ),
+        yaw: 0.0,
+        pitch: 0.0,
+        vfov: 45.0,
+    ),
+    spheres: [
+        ( // bottom
+            pos: (
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            mat_type: 1,
+            mat_index: 1,
+        ),
+        ( // middle
+            pos: (
+                x: 0.0,
+                y: 2.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            mat_type: 1,
+            mat_index: 2,
+        ),
+        ( // top
+            pos: (
+                x: 0.0,
+                y: 4.0,
+                z: 0.0,
+            ),
+            rad: 1.0,
+            mat_type: 1,
+            mat_index: 3,
+        ),
+        ( // light
+            pos: (
+                x: 0.0,
+                y: 25.0,
+                z: 60.0,
+            ),
+            rad: 25.0,
+            mat_type: 0,
+            mat_index: 0,
+        ),
+        ( // right
+            pos: (
+                x: -2.0,
+                y: 2.0,
+                z: 0.0,
+            ),
+            rad: 0.5,
+            mat_type: 2,
+            mat_index: 0,
+        ),
+        ( // right
+            pos: (
+                x: 2.0,
+                y: 2.0,
+                z: 0.0,
+            ),
+            rad: 0.5,
+            mat_type: 2,
+            mat_index: 1,
+        ),
+        ( // back
+            pos: (
+                x: 0.0,
+                y: 2.0,
+                z: 2.0,
+            ),
+            rad: 0.5,
+            mat_type: 3,
+            mat_index: 0,
+        ),
+        ( // back
+            pos: (
+                x: 0.0,
+                y: 2.0,
+                z: 2.0,
+            ),
+            rad: 0.4,
+            mat_type: 1,
+            mat_index: 3,
+        ),
+        ( // diamond
+            pos: (
+                x: 0.0,
+                y: 2.0,
+                z: 4.0,
+            ),
+            rad: 0.5,
+            mat_type: 3,
+            mat_index: 1,
+        ),
+        ( // ground
+            pos: (
+                x: -0.0,
+                y: -1001.0,
+                z: -0.0,
+            ),
+            rad: 1000.0,
+            mat_type: 1,
+            mat_index: 0,
+        ),
+    ],
+    lights: [
+        (
+            colour: (
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            )
+        )
+    ],
+    lambertians: [
+        ( 
+            albedo: (
+                x: 0.5,
+                y: 0.5,
+                z: 0.5,
+            )
+        ),
+        (
+            albedo: (
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            )
+        ),
+        (
+            albedo: (
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            )
+        ),
+        (
+            albedo: (
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            )
+        )
+    ],
+    metals: [
+        (
+            albedo: (
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            ),
+            roughness: 0.0,
+        ),
+        (
+            albedo: (
+                x: 0.9,
+                y: 0.9,
+                z: 0.9,
+            ),
+            roughness: 1.0,
+        )
+    ],
+    glass: [
+        (
+            ir: 1.01,
+        ),
+        (
+            ir: 2.4,
+        )
+    ],
+)

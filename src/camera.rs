@@ -3,7 +3,9 @@ use crate::{bytes::Bytes, ray::Ray, vector3::*};
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CameraSettings {
     pub pos: Vector3,
+    /// horizontal angle in degree
     pub yaw: f32,
+    /// vertical angle in degree
     pub pitch: f32,
     /// vertical in degrees
     pub vfov: f32,
@@ -12,9 +14,11 @@ pub struct CameraSettings {
 #[derive(Clone, Copy, Debug)]
 pub struct CameraConfig {
     pub pos: Vector3,
+    /// horizontal angle in radians
     pub yaw: f32,
+    /// vertical angle in radians
     pub pitch: f32,
-    /// vertical in radians
+    /// vertical fov in radians
     pub vfov: f32,
     pub aspect: f32,
 }
@@ -22,8 +26,8 @@ impl CameraConfig {
     pub fn new(settings: CameraSettings, aspect: f32) -> Self {
         Self {
             pos: settings.pos,
-            yaw: settings.yaw,
-            pitch: settings.pitch,
+            yaw: settings.yaw.to_radians(),
+            pitch: settings.pitch.to_radians(),
             vfov: settings.vfov.to_radians(),
             aspect,
         }
