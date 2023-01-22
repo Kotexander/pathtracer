@@ -210,8 +210,9 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     var colour = vec3<f32>(1.0, 1.0, 1.0);
     var light = vec3<f32>(0.0, 0.0, 0.0);
 
-    let t_min = 0.001;
+    let t_min = 0.000;
     let t_max = 1.0 / 0.0;
+    let dist = 0.001;
 
     var not_hit_light = true;
 
@@ -220,6 +221,7 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
         var hit_record: HitRecord;
         if closet_hit(ray, t_min, t_max, &hit_record) {
             let sphere = spheres[hit_record.sphere_index];
+            let new_pos = hit_record.pos + hit_record.norm * dist;
             switch sphere.mat_type {
                 // light
                 case 0u: {
@@ -231,7 +233,7 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
                 case 1u: {
                     let material = lambertians[sphere.mat_index];
                     let scattered = normalize(hit_record.norm + rand_in_sphere(seed));
-                    ray = ray_new(hit_record.pos, scattered);
+                    ray = ray_new(new_pos, scattered);
                     colour *= material.albedo;
                 }
                 // metal 
@@ -244,9 +246,10 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
                     // );
                     // ray = ray_new(hit_record.pos, (reflect(ray.dir, hit_record.norm + (rand_vec * material.roughness))));
                     let reflected = normalize(reflect(ray.dir, hit_record.norm) + rand_in_sphere(seed) * material.roughness);
-                    ray = ray_new(hit_record.pos, reflected);
+                    ray = ray_new(new_pos, reflected);
                     colour *= material.albedo;
                 }
+                // glass
                 case 3u {
                     let material = glass[sphere.mat_index];
                     var ir: f32;
@@ -261,15 +264,19 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
                     let sin_theta = sqrt(1.0 - cos_theta*cos_theta);
                     let cannot_refract = ir * sin_theta > 1.0;
                     var dir: vec3<f32>;
+
+                    var new_pos: vec3<f32>;
                     if cannot_refract || reflectance(cos_theta, ir) > randf(seed) {
                         dir = reflect(ray.dir, hit_record.norm);
+                        new_pos = hit_record.pos + hit_record.norm * dist;
                     }
                     else {
                         dir = refract(ray.dir, hit_record.norm, ir);
+                        new_pos = hit_record.pos - hit_record.norm * dist;
                     }
                     dir = normalize(dir);
 
-                    ray = ray_new(hit_record.pos, dir);
+                    ray = ray_new(new_pos, dir);
                 }
                 default {
                     return vec3<f32>(0.0, 0.0, 0.0);
@@ -337,11 +344,4 @@ fn main( in: In ) {
     var texture_colour = textureLoad(tex, pc_i32);
     texture_colour += vec4<f32>(final_colour / f32(globals.samples), 0.0);
     textureStore(tex, pc_i32, texture_colour);
-
-
-    // store the average colour into the output texture
-    // textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(final_colour / f32(globals.samples), 1.0));
-    
-    // textureStore(tex, vec2<i32>(pixel_coords), vec4(0.0, uv.x, uv.y, 1.0)); // green and blue
-    // textureStore(tex, vec2<i32>(pixel_coords), vec4<f32>(uv.x, uv.y, 0.0, 1.0)); // red and green
 }

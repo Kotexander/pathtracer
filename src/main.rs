@@ -22,14 +22,6 @@ use winit::{
 const VERTICIES: [[f32; 2]; 4] = [[-1.0, 1.0], [1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]];
 const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
 
-// const WHITE: Vector3 = Vector3::new(1.0, 1.0, 1.0);
-// const GREY: Vector3 = Vector3::new(0.1, 0.1, 0.1);
-// const BLACK: Vector3 = Vector3::new(0.0, 0.0, 0.0);
-
-// const BLUE: Vector3 = Vector3::new(0.0, 0.0, 1.0);
-// const RED: Vector3 = Vector3::new(1.0, 0.0, 0.0);
-// const GREEN: Vector3 = Vector3::new(0.0, 1.0, 0.0);
-
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 struct Settings {
     samples: i32,
@@ -93,6 +85,8 @@ struct App {
 
     samples: i32,
     dirty: bool,
+
+    save_next_frame: bool,
 }
 impl App {
     async fn new(window: &Window) -> Self {
@@ -174,6 +168,8 @@ impl App {
         let samples = -1; // number of frames accumulated
         let dirty = true; // if accumulated texture should be cleared
 
+        let save_next_frame = false;
+
         Self {
             ctx,
             render_pipeline,
@@ -192,6 +188,7 @@ impl App {
             globals,
             dirty,
             samples,
+            save_next_frame,
         }
     }
 
@@ -265,10 +262,9 @@ impl App {
             Ok(output) => output,
             Err(e) => {
                 match e {
-                    wgpu::SurfaceError::Lost => self
-                        .ctx
-                        .surface
-                        .configure(&self.ctx.device, &self.ctx.surface_config),
+                    wgpu::SurfaceError::Lost => {
+                        self.ctx.surface_configure();
+                    }
                     wgpu::SurfaceError::OutOfMemory => panic!("Out of memory"),
                     _ => {
                         println!("{e:?}")
@@ -301,9 +297,99 @@ impl App {
         // draw accumulated texuter
         self.render_pass(&mut encoder, &view);
 
+        let mut output_buffer = None;
+        let tex_desc = self.texture.desc();
+        let tex_width = tex_desc.size.width;
+        let tex_height = tex_desc.size.height;
+        // wgpu requires texture -> buffer copies to be aligned using
+        // wgpu::COPY_BYTES_PER_ROW_ALIGNMENT. Because of this we'll
+        // need to save both the padded_bytes_per_row as well as the
+        // unpadded_bytes_per_row
+        let pixel_size = std::mem::size_of::<[f32; 4]>() as u32;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let unpadded_bytes_per_row = pixel_size * tex_width;
+        let padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + padding;
+        if self.save_next_frame {
+            use std::num::NonZeroU32;
+            self.save_next_frame = false;
+
+            // let output_buffer_size = (u32_size * tex_width * tex_height) as wgpu::BufferAddress;
+            let output_buffer_desc = wgpu::BufferDescriptor {
+                size: (padded_bytes_per_row * tex_height) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                label: None,
+                mapped_at_creation: false,
+            };
+            output_buffer = Some(self.ctx.device.create_buffer(&output_buffer_desc));
+            encoder.copy_texture_to_buffer(
+                wgpu::ImageCopyTexture {
+                    texture: self.texture.texture(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyBuffer {
+                    buffer: output_buffer.as_ref().unwrap(),
+                    layout: wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(NonZeroU32::new(padded_bytes_per_row).unwrap()),
+                        rows_per_image: None,
+                        // rows_per_image: Some(NonZeroU32::new(tex_height).unwrap()),
+                    },
+                },
+                tex_desc.size,
+            );
+        }
         // finish frame
         self.ctx.queue.submit([encoder.finish()]);
         output.present();
+
+        if let Some(output_buffer) = output_buffer {
+            let buffer_slice = output_buffer.slice(..);
+
+            let (tx, rx) = std::sync::mpsc::channel();
+            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                tx.send(result).unwrap();
+            });
+            self.ctx.device.poll(wgpu::Maintain::Wait);
+            let _ = rx.recv().unwrap();
+
+            // let data = buffer_slice.get_mapped_range();
+            let padded_data = buffer_slice.get_mapped_range();
+            let data = padded_data
+                .chunks(padded_bytes_per_row as _)
+                .map(|chunk| &chunk[..unpadded_bytes_per_row as _])
+                .flatten()
+                .map(|x| *x)
+                .collect::<Vec<_>>();
+
+            let mut img = image::Rgba32FImage::from_raw(
+                tex_width,
+                tex_height,
+                bytemuck::cast_slice(&data).to_vec(),
+            )
+            .unwrap();
+
+            let samples = self.samples as f32;
+            for p in img.pixels_mut() {
+                p[0] /= samples;
+                p[1] /= samples;
+                p[2] /= samples;
+
+                let gamma = 1.0 / 2.2;
+                p[0] = p[0].powf(gamma);
+                p[1] = p[1].powf(gamma);
+                p[2] = p[2].powf(gamma);
+            }
+            let img = image::DynamicImage::ImageRgba32F(img);
+            let img = img.to_rgba8();
+
+            println!("Img size: {}, {}", img.width(), img.height());
+            println!("Samples: {}", self.samples * self.globals.samples);
+
+            img.save("img.png").unwrap();
+        }
     }
 
     fn clear(&mut self, encoder: &mut wgpu::CommandEncoder) {
@@ -540,6 +626,9 @@ impl App {
 
         if let ElementState::Pressed = state {
             match key {
+                VirtualKeyCode::Z => {
+                    self.save_next_frame = true;
+                }
                 VirtualKeyCode::R => {
                     self.reload_scene();
                 }
@@ -630,17 +719,6 @@ impl App {
                 });
         self.dirty = true;
     }
-
-    // fn save(&self) {
-    // let img = self.renderer.image();
-    // let img = image::ImageBuffer::from_fn(img.width() as u32, img.height() as u32, |x, y| {
-    // let p = img.get(x as usize, y as usize);
-    // image::Rgb([p.x, p.y, p.z])
-    // });
-    // let img = image::DynamicImage::ImageRgb32F(img).into_rgb8();
-
-    // img.save("Renders/image.png").unwrap();
-    // }
 }
 
 fn main() {

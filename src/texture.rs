@@ -51,4 +51,8 @@ impl Texture {
     pub fn desc_mut(&mut self) -> &mut wgpu::TextureDescriptor<'static> {
         &mut self.desc
     }
+
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
 }
