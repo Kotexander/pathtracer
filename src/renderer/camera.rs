@@ -1,4 +1,4 @@
-use crate::{bytes::Bytes, ray::Ray, vector3::*};
+use super::{bytes::Bytes, ray::Ray, vector3::*};
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CameraSettings {
@@ -88,16 +88,16 @@ impl Bytes for Camera {
         let mut v = vec![];
 
         v.extend(b_pos);
-        v.extend(byte.clone());
+        v.extend(byte);
 
         v.extend(b_horizontal);
-        v.extend(byte.clone());
+        v.extend(byte);
 
         v.extend(b_vertical);
-        v.extend(byte.clone());
+        v.extend(byte);
 
         v.extend(b_center);
-        v.extend(byte.clone());
+        v.extend(byte);
 
         v
     }

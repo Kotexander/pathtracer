@@ -15,7 +15,7 @@ impl Model {
         });
         let indecies = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&indecies),
+            contents: bytemuck::cast_slice(indecies),
             usage: wgpu::BufferUsages::INDEX,
         });
 

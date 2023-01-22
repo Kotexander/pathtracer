@@ -1,16 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use bytes::*;
-use camera::*;
-use compute_pipeline::*;
-use globals::*;
 use model::*;
-use pathtracer::*;
+use pathtracer::{
+    renderer::{bytes::Bytes, vector3::*},
+    *,
+};
 use render_pipeline::*;
-use texture::*;
-use vector3::*;
+use renderer::*;
+use scene::*;
 use wgpu::util::DeviceExt;
 use wgpu_context::*;
+
 use winit::{
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, VirtualKeyCode, WindowEvent,
@@ -21,12 +21,6 @@ use winit::{
 
 const VERTICIES: [[f32; 2]; 4] = [[-1.0, 1.0], [1.0, 1.0], [1.0, -1.0], [-1.0, -1.0]];
 const INDECIES: [u16; 6] = [0, 1, 2, 2, 3, 0];
-
-#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
-struct Settings {
-    samples: i32,
-    depth: i32,
-}
 
 #[derive(Clone, Copy, Debug)]
 struct CameraController {
@@ -64,27 +58,16 @@ impl CameraController {
 
 struct App {
     ctx: WgpuContext,
+
     render_pipeline: RenderPipeline,
-    compute_pipeline: ComputePipeline,
+
+    renderer: Renderer,
 
     model: Model,
 
-    texture: Texture,
     sampler: wgpu::Sampler,
 
-    spheres_buffer: wgpu::Buffer,
-    lights_buffer: wgpu::Buffer,
-    lambertians_buffer: wgpu::Buffer,
-    metals_buffer: wgpu::Buffer,
-    glass_buffer: wgpu::Buffer,
-    camera_config: CameraConfig,
-    camera_buffer: wgpu::Buffer,
     camera_controller: CameraController,
-
-    globals: Globals,
-
-    samples: i32,
-    dirty: bool,
 
     save_next_frame: bool,
 }
@@ -97,163 +80,45 @@ impl App {
         // wgpu stuff
         let ctx = WgpuContext::new(window).await;
         let render_pipeline = RenderPipeline::new(&ctx);
-        let compute_pipeline = ComputePipeline::new(&ctx.device);
 
         // model that fills the entire screen
         let model = Model::new(&ctx.device, &VERTICIES, &INDECIES);
 
-        // render texture and sampler
-        let texture = Texture::new(&ctx.device, width, height);
+        // sampler
         let sampler = ctx
             .device
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
         // load scene
         let scene: Scene = load_ron("scene.ron");
-        let camera_config = CameraConfig::new(scene.camera, width as f32 / height as f32);
-
         // load settings
         let settings: Settings = load_ron("settings.ron");
-        let globals = Globals::new(rand::random(), settings.samples, settings.depth);
 
-        // get spheres and materials onto the gpu
-        let spheres_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Spheres Buffer"),
-                contents: &scene.spheres.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let lights_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Lights Buffer"),
-                contents: &scene.lights.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let lambertians_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Lambertians Buffer"),
-                contents: &scene.lambertians.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let metals_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Metals Buffer"),
-                contents: &scene.metals.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let glass_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Glass Buffer"),
-                contents: &scene.glass.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        // get camera onto the gpu
-        let camera_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Config Buffer"),
-                contents: &camera_config.build().bytes(),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+        let renderer = Renderer::new(&ctx.device, scene, settings, width, height);
 
         // camera controller for real time
         let camera_controller = CameraController::new();
-
-        let samples = -1; // number of frames accumulated
-        let dirty = true; // if accumulated texture should be cleared
 
         let save_next_frame = false;
 
         Self {
             ctx,
             render_pipeline,
-            compute_pipeline,
+            renderer,
             model,
-            texture,
             sampler,
-            spheres_buffer,
-            lights_buffer,
-            lambertians_buffer,
-            metals_buffer,
-            glass_buffer,
-            camera_config,
-            camera_buffer,
             camera_controller,
-            globals,
-            dirty,
-            samples,
             save_next_frame,
         }
     }
 
     fn reload_scene(&mut self) {
-        // reload scene
         let scene: Scene = load_ron("scene.ron");
-        let camera_config = CameraConfig::new(scene.camera, self.camera_config.aspect);
-
-        // recreate spheres and matrial buffers
-        let spheres_buffer =
-            self.ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Spheres Buffer"),
-                    contents: &scene.spheres.bytes(),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-        let lights_buffer = self
-            .ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Lights Buffer"),
-                contents: &scene.lights.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let lambertians_buffer =
-            self.ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Lambertians Buffer"),
-                    contents: &scene.lambertians.bytes(),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-        let metals_buffer = self
-            .ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Metals Buffer"),
-                contents: &scene.metals.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-        let glass_buffer = self
-            .ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Glass Buffer"),
-                contents: &scene.glass.bytes(),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        // update app
-        self.camera_config = camera_config;
-        self.spheres_buffer = spheres_buffer;
-        self.lights_buffer = lights_buffer;
-        self.lambertians_buffer = lambertians_buffer;
-        self.metals_buffer = metals_buffer;
-        self.glass_buffer = glass_buffer;
-        self.update_camera();
+        self.renderer.reload_scene(&self.ctx.device, &scene);
     }
     fn reload_settings(&mut self) {
-        // reload settings
         let settings: Settings = load_ron("settings.ron");
-
-        self.globals.samples = settings.samples;
-        self.globals.depth = settings.depth;
+        self.renderer.reload_settings(&settings);
     }
 
     fn render(&mut self) {
@@ -285,68 +150,23 @@ impl App {
                 label: Some("Encoder"),
             });
 
-        // reset renderer if dirty
-        if self.dirty {
-            self.dirty = false;
-            self.samples = 0;
-            self.clear(&mut encoder);
-        }
-
         // accumulate one frame
-        self.compute_pass(&mut encoder);
-        // draw accumulated texuter
+        self.renderer.render(&self.ctx.device, &mut encoder);
+        // draw accumulated texture
         self.render_pass(&mut encoder, &view);
 
-        let mut output_buffer = None;
-        let tex_desc = self.texture.desc();
-        let tex_width = tex_desc.size.width;
-        let tex_height = tex_desc.size.height;
-        // wgpu requires texture -> buffer copies to be aligned using
-        // wgpu::COPY_BYTES_PER_ROW_ALIGNMENT. Because of this we'll
-        // need to save both the padded_bytes_per_row as well as the
-        // unpadded_bytes_per_row
-        let pixel_size = std::mem::size_of::<[f32; 4]>() as u32;
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let unpadded_bytes_per_row = pixel_size * tex_width;
-        let padding = (align - unpadded_bytes_per_row % align) % align;
-        let padded_bytes_per_row = unpadded_bytes_per_row + padding;
+        let mut save_info = None;
         if self.save_next_frame {
-            use std::num::NonZeroU32;
+            save_info = Some(self.renderer.start_save(&self.ctx.device, &mut encoder));
             self.save_next_frame = false;
-
-            // let output_buffer_size = (u32_size * tex_width * tex_height) as wgpu::BufferAddress;
-            let output_buffer_desc = wgpu::BufferDescriptor {
-                size: (padded_bytes_per_row * tex_height) as u64,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                label: None,
-                mapped_at_creation: false,
-            };
-            output_buffer = Some(self.ctx.device.create_buffer(&output_buffer_desc));
-            encoder.copy_texture_to_buffer(
-                wgpu::ImageCopyTexture {
-                    texture: self.texture.texture(),
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::ImageCopyBuffer {
-                    buffer: output_buffer.as_ref().unwrap(),
-                    layout: wgpu::ImageDataLayout {
-                        offset: 0,
-                        bytes_per_row: Some(NonZeroU32::new(padded_bytes_per_row).unwrap()),
-                        rows_per_image: None,
-                        // rows_per_image: Some(NonZeroU32::new(tex_height).unwrap()),
-                    },
-                },
-                tex_desc.size,
-            );
         }
+
         // finish frame
         self.ctx.queue.submit([encoder.finish()]);
         output.present();
 
-        if let Some(output_buffer) = output_buffer {
-            let buffer_slice = output_buffer.slice(..);
+        if let Some(save_info) = save_info {
+            let buffer_slice = save_info.buffer.slice(..);
 
             let (tx, rx) = std::sync::mpsc::channel();
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
@@ -358,20 +178,19 @@ impl App {
             // let data = buffer_slice.get_mapped_range();
             let padded_data = buffer_slice.get_mapped_range();
             let data = padded_data
-                .chunks(padded_bytes_per_row as _)
-                .map(|chunk| &chunk[..unpadded_bytes_per_row as _])
-                .flatten()
-                .map(|x| *x)
+                .chunks(save_info.padded as _)
+                .flat_map(|chunk| &chunk[..save_info.unpadded as _])
+                .copied()
                 .collect::<Vec<_>>();
 
             let mut img = image::Rgba32FImage::from_raw(
-                tex_width,
-                tex_height,
+                save_info.tex_width,
+                save_info.tex_height,
                 bytemuck::cast_slice(&data).to_vec(),
             )
             .unwrap();
 
-            let samples = self.samples as f32;
+            let samples = self.renderer.samples() as f32;
             for p in img.pixels_mut() {
                 p[0] /= samples;
                 p[1] /= samples;
@@ -386,130 +205,13 @@ impl App {
             let img = img.to_rgba8();
 
             println!("Img size: {}, {}", img.width(), img.height());
-            println!("Samples: {}", self.samples * self.globals.samples);
+            println!(
+                "Samples: {}",
+                self.renderer.samples() * self.renderer.globals().samples
+            );
 
             img.save("img.png").unwrap();
         }
-    }
-
-    fn clear(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: self.texture.view(),
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: None,
-        });
-    }
-
-    fn compute_pass(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        let seed_buffer = self
-            .ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Global Buffer"),
-                contents: &self.globals.bytes(),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-
-        let bind_group = self
-            .ctx
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: self.compute_pipeline.bind_group_layout(),
-                entries: &[
-                    // output texture
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(self.texture.view()),
-                    },
-                    // camera
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.camera_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // globals
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &seed_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // spheres
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.spheres_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // lights
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.lights_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // lambertians
-                    wgpu::BindGroupEntry {
-                        binding: 5,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.lambertians_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // metals
-                    wgpu::BindGroupEntry {
-                        binding: 6,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.metals_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                    // glass
-                    wgpu::BindGroupEntry {
-                        binding: 7,
-                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                            buffer: &self.glass_buffer,
-                            offset: 0,
-                            size: None,
-                        }),
-                    },
-                ],
-            });
-
-        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
-        cpass.set_pipeline(self.compute_pipeline.pipeline());
-        cpass.set_bind_group(0, &bind_group, &[]);
-        let t_desc = self.texture.desc();
-        let width = (t_desc.size.width as f32 / 16.0).ceil() as u32;
-        let height = (t_desc.size.height as f32 / 16.0).ceil() as u32;
-        cpass.dispatch_workgroups(width, height, 1);
-
-        self.globals.seed = rand::random();
-        self.samples += 1;
     }
 
     fn render_pass(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
@@ -518,7 +220,7 @@ impl App {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Render Globals"),
-                contents: &self.samples.bytes(),
+                contents: &self.renderer.samples().bytes(),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
@@ -531,7 +233,9 @@ impl App {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(self.texture.view()),
+                        resource: wgpu::BindingResource::TextureView(
+                            self.renderer.texture().view(),
+                        ),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -551,7 +255,7 @@ impl App {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -580,15 +284,7 @@ impl App {
         self.ctx.surface_config.height = height;
         self.ctx.surface_configure();
 
-        // compute shader texture
-        let desc = self.texture.desc_mut();
-        desc.size.width = width;
-        desc.size.height = height;
-        self.texture.update(&self.ctx.device);
-
-        // camera
-        self.camera_config.aspect = width as f32 / height as f32;
-        self.update_camera();
+        self.renderer.resize(&self.ctx.device, width, height);
     }
 
     fn input(&mut self, key: &VirtualKeyCode, state: &ElementState) {
@@ -641,7 +337,6 @@ impl App {
     }
 
     fn update(&mut self, dt: f32) {
-        let mut cam_dirty = false; // if camera buffer needs to be recreated at the end
         let sensitivity = 0.5; // mouse sensitivity
 
         // movement speed
@@ -658,23 +353,22 @@ impl App {
         if self.camera_controller.right_down {
             // if right mouse button is down
             if let Some(delta) = self.camera_controller.delta_mouse {
+                let camera_config = self.renderer.camera_config_mut();
                 // if mouse was moved from previous frame
-                self.camera_config.yaw += delta[0] * sensitivity * dt;
-                self.camera_config.pitch -= delta[1] * sensitivity * dt;
+                camera_config.yaw += delta[0] * sensitivity * dt;
+                camera_config.pitch -= delta[1] * sensitivity * dt;
 
                 // clamp pitch
                 // camera breaks when looking directly up or down
-                self.camera_config.pitch = self
-                    .camera_config
+                camera_config.pitch = camera_config
                     .pitch
                     .clamp(-80.0f32.to_radians(), 80.0f32.to_radians());
 
-                cam_dirty = true;
                 self.camera_controller.delta_mouse = None;
             }
         }
 
-        let cam_dir = self.camera_config.dir();
+        let cam_dir = self.renderer.camera_config().dir();
         let cam_right = cross(&camera::UP, &cam_dir);
 
         let mut offset = Vector3::ZERO;
@@ -698,26 +392,8 @@ impl App {
         }
         if offset != Vector3::ZERO {
             offset.normalize();
-            self.camera_config.pos += offset * speed * dt;
-            cam_dirty = true;
+            self.renderer.camera_config_mut().pos += offset * speed * dt;
         }
-
-        // update camera if neccesary
-        if cam_dirty {
-            self.update_camera();
-        }
-    }
-
-    fn update_camera(&mut self) {
-        self.camera_buffer =
-            self.ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Camera Config Buffer"),
-                    contents: &self.camera_config.build().bytes(),
-                    usage: wgpu::BufferUsages::UNIFORM,
-                });
-        self.dirty = true;
     }
 }
 
@@ -763,35 +439,36 @@ fn main() {
                 } => {
                     app.input(&vkeycode, &state);
                 }
-                WindowEvent::MouseInput { state, button, .. } => {
-                    if let MouseButton::Right = button {
-                        match state {
-                            ElementState::Pressed => {
-                                window.set_cursor_visible(false);
-                                window
-                                    .set_cursor_grab(CursorGrabMode::Locked)
-                                    .or_else(|_err| {
-                                        window.set_cursor_grab(CursorGrabMode::Confined)
-                                    })
-                                    .expect("the cursor should be able to lock");
-                                app.camera_controller.right_down = true;
-                            }
-                            ElementState::Released => {
-                                window
-                                    .set_cursor_grab(CursorGrabMode::None)
-                                    .expect("the cursor should be able to unlock");
-                                window.set_cursor_visible(true);
-                                app.camera_controller.right_down = false;
-                            }
-                        };
+                WindowEvent::MouseInput {
+                    state,
+                    button: MouseButton::Right,
+                    ..
+                } => {
+                    match state {
+                        ElementState::Pressed => {
+                            window.set_cursor_visible(false);
+                            window
+                                .set_cursor_grab(CursorGrabMode::Locked)
+                                .or_else(|_err| window.set_cursor_grab(CursorGrabMode::Confined))
+                                .expect("the cursor should be able to lock");
+                            app.camera_controller.right_down = true;
+                        }
+                        ElementState::Released => {
+                            window
+                                .set_cursor_grab(CursorGrabMode::None)
+                                .expect("the cursor should be able to unlock");
+                            window.set_cursor_visible(true);
+                            app.camera_controller.right_down = false;
+                        }
                     };
                 }
                 _ => {}
             },
-            Event::DeviceEvent { event, .. } => {
-                if let DeviceEvent::MouseMotion { delta } = event {
-                    app.camera_controller.delta_mouse = Some([delta.0 as f32, delta.1 as f32]);
-                }
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion { delta },
+                ..
+            } => {
+                app.camera_controller.delta_mouse = Some([delta.0 as f32, delta.1 as f32]);
             }
             Event::MainEventsCleared => {
                 window.request_redraw();

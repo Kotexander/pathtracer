@@ -1,4 +1,4 @@
-use crate::bytes::Bytes;
+use super::bytes::Bytes;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]

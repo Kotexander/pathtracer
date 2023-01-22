@@ -1,4 +1,4 @@
-use crate::{bytes::Bytes, vector3::Vector3};
+use super::{bytes::Bytes, vector3::Vector3};
 
 pub mod indecies {
     pub const LIGHT: u32 = 0;

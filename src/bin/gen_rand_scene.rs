@@ -1,5 +1,8 @@
 use pathtracer::{
-    camera::CameraSettings, materials::*, save_ron, sphere::Sphere, vector3::Vector3, Scene,
+    renderer::{
+        camera::CameraSettings, materials::*, scene::Scene, sphere::Sphere, vector3::Vector3,
+    },
+    save_ron,
 };
 use rand::Rng;
 

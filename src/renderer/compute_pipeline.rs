@@ -103,7 +103,7 @@ impl ComputePipeline {
 
         #[cfg(debug_assertions)]
         let shader = {
-            let file = std::fs::read_to_string("src/compute.wgsl").unwrap();
+            let file = std::fs::read_to_string("src/renderer/compute.wgsl").unwrap();
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Compute Shader"),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::from(file)),

@@ -33,6 +33,12 @@ impl Texture {
         }
     }
 
+    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+        self.desc.size.width = width;
+        self.desc.size.height = height;
+        self.update(device);
+    }
+
     pub fn update(&mut self, device: &wgpu::Device) {
         self.texture = device.create_texture(&self.desc);
         self.view = self
