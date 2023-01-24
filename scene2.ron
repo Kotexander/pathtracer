@@ -10,7 +10,7 @@
         vfov: 45.0,
     ),
     spheres: [
-         ( // ground
+        ( // ground
             pos: (
                 x: 0.0,
                 y: -100.5,
@@ -50,6 +50,46 @@
             mat_type: 2,
             mat_index: 1,
         ),
+        // ( // ground
+        //     pos: (
+        //         x: 0.0,
+        //         y: 110.5,
+        //         z: 0.0,
+        //     ),
+        //     rad: 100.0,
+        //     mat_type: 1,
+        //     mat_index: 0,
+        // ),
+        // ( // middle
+        //     pos: (
+        //         x: 0.0,
+        //         y: 5.0,
+        //         z: 0.0,
+        //     ),
+        //     rad: 0.5,
+        //     mat_type: 1,
+        //     mat_index: 1,
+        // ),
+        // ( // left
+        //     pos: (
+        //         x: -1.0,
+        //         y: 0.0,
+        //         z: 0.0,
+        //     ),
+        //     rad: 0.5,
+        //     mat_type: 3,
+        //     mat_index: 0,
+        // ),
+        // ( // right
+        //     pos: (
+        //         x: 1.0,
+        //         y: 0.0,
+        //         z: 0.0,
+        //     ),
+        //     rad: 0.5,
+        //     mat_type: 2,
+        //     mat_index: 1,
+        // ),
     ],
     lights: [
         (

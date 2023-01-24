@@ -58,17 +58,11 @@ impl CameraController {
 
 struct App {
     ctx: WgpuContext,
-
     render_pipeline: RenderPipeline,
-
     renderer: Renderer,
-
     model: Model,
-
     sampler: wgpu::Sampler,
-
     camera_controller: CameraController,
-
     save_next_frame: bool,
 }
 impl App {
@@ -114,7 +108,7 @@ impl App {
 
     fn reload_scene(&mut self) {
         let scene: Scene = load_ron("scene.ron");
-        self.renderer.reload_scene(&self.ctx.device, &scene);
+        self.renderer.reload_scene(&self.ctx.device, scene);
     }
     fn reload_settings(&mut self) {
         let settings: Settings = load_ron("settings.ron");

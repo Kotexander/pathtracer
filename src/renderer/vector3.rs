@@ -42,6 +42,12 @@ impl Vector3 {
         Self::new(self.x.abs(), self.y.abs(), self.z.abs())
     }
 }
+pub fn max(lhs: &Vector3, rhs: &Vector3) -> Vector3 {
+    Vector3::new(lhs.x.max(rhs.x), lhs.y.max(rhs.y), lhs.z.max(rhs.z))
+}
+pub fn min(lhs: &Vector3, rhs: &Vector3) -> Vector3 {
+    Vector3::new(lhs.x.min(rhs.x), lhs.y.min(rhs.y), lhs.z.min(rhs.z))
+}
 
 use std::ops::*;
 impl Add for Vector3 {

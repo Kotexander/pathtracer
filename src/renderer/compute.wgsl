@@ -39,15 +39,17 @@ fn rand_in_sphere(seed: ptr<function, u32>) -> vec3<f32> {
 struct Ray {
     pos: vec3<f32>,
     dir: vec3<f32>,
+    inv_dir: vec3<f32>
 }
 fn ray_new(pos: vec3<f32>, dir: vec3<f32>) -> Ray {
     var ray: Ray;
     ray.pos = pos;
     ray.dir = dir;
+    ray.inv_dir = 1.0 / dir;
     return ray;
 }
 fn ray_at(ray: Ray, t: f32) -> vec3<f32> {
-    return ray.pos + ray.dir * t;
+    return ray.pos + (ray.dir * t);
 }
 // --- !Ray ---
 
@@ -65,17 +67,43 @@ fn camera_get_ray(camera: Camera, uv: vec2<f32>) -> Ray {
     );
 }
 // --- !Camera ---
-
 // --- Hit Record ---
 struct HitRecord {
     t: f32,
     pos: vec3<f32>,
     norm: vec3<f32>,
 
-    sphere_index: i32,
+    sphere_index: u32,
     back: bool,
 }
 // --- !Hit Record
+// --- Bounding Box ---
+struct BoundingBox {
+    min: vec3<f32>,
+    max: vec3<f32>,
+}
+fn ray_bbox_intersect(bbox: BoundingBox, ray: Ray) -> bool {
+    let t0s = (bbox.min - ray.pos) / ray.dir;
+    let t1s = (bbox.max - ray.pos) / ray.dir;
+
+    let tsmaller = min(t0s, t1s);
+    let tbigger = max(t0s, t1s);
+
+    let tmin = max(0.0, max(tsmaller.x, max(tsmaller.y, tsmaller.z)));
+    let tmax = min(tbigger.x, min(tbigger.y, tbigger.z));
+
+    return tmin < tmax;
+}
+// --- !Bounding Box ---
+// --- BVHNode ---
+struct BVHNode {
+    bbox: BoundingBox,
+
+    node_type: u32,
+    index: u32,
+}
+// --- !BVHNode ---
+
 
 // --- Sphere ---
 struct Sphere {
@@ -153,16 +181,17 @@ var<uniform> camera: Camera;
 @group(0) @binding(2)
 var<uniform> globals: Globals;
 
-@group(0) @binding(3)
+@group(1) @binding(0)
+var<storage> bvh: array<BVHNode>;
+@group(1) @binding(1)
 var<storage> spheres: array<Sphere>;
-
-@group(0) @binding(4)
+@group(1) @binding(2)
 var<storage> lights: array<Light>;
-@group(0) @binding(5)
+@group(1) @binding(3)
 var<storage> lambertians: array<Lambertian>;
-@group(0) @binding(6)
+@group(1) @binding(4)
 var<storage> metals: array<Metal>;
-@group(0) @binding(7)
+@group(1) @binding(5)
 var<storage> glass: array<Glass>;
 
 fn refract(i: vec3<f32>, n: vec3<f32>, etai_over_etat: f32) -> vec3<f32>{
@@ -177,20 +206,58 @@ fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
     return r0 + (1.0-r0)*pow((1.0 - cosine), 5.0);
 }
 fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
-    let len = i32(arrayLength(&spheres));
+    // let len = arrayLength(&spheres);
+    // var closet_hit: HitRecord; // hit record of the closet object
+    // closet_hit.t = t_max; // set closet distance to max distance
+    // var has_hit = false;
+
+    // for(var i = 0u; i < len; i++) {
+    //     var hit_record: HitRecord;
+    //     if (ray_sphere_intersect(spheres[i], ray, t_min, closet_hit.t, &hit_record)) {
+    //         closet_hit = hit_record;
+    //         closet_hit.sphere_index = i;
+    //         has_hit = true;
+    //     }
+    // }
+
+    // if has_hit {
+    //     *hit_record = closet_hit;
+    //     return true;
+    // }
+    // return false;
+
     var closet_hit: HitRecord; // hit record of the closet object
     closet_hit.t = t_max; // set closet distance to max distance
     var has_hit = false;
 
-    for(var i: i32 = 0; i < len; i++) {
-        var hit_record: HitRecord;
-        if (ray_sphere_intersect(spheres[i], ray, t_min, closet_hit.t, &hit_record)) {
-            closet_hit = hit_record;
-            closet_hit.sphere_index = i;
-            has_hit = true;
+    let len = arrayLength(&bvh);
+
+    var i = 0u;
+    while i < len {
+        let node = bvh[i];
+        i += 1u;
+        switch node.node_type {
+            // node
+            case 0u {
+                if !ray_bbox_intersect(node.bbox, ray) {
+                    i = node.index;
+                }
+            }
+            // obj
+            case 1u {
+                var hit_record: HitRecord;
+                if (ray_sphere_intersect(spheres[node.index], ray, t_min, closet_hit.t, &hit_record)) {
+                    closet_hit = hit_record;
+                    closet_hit.sphere_index = node.index;
+                    has_hit = true;
+                }
+            }
+            default {
+                return false;
+            }
         }
     }
-
+    
     if has_hit {
         *hit_record = closet_hit;
         return true;
@@ -215,7 +282,6 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
     let dist = 0.001;
 
     var not_hit_light = true;
-
     var i = 0;
     while ( i <= globals.depth && not_hit_light) {
         var hit_record: HitRecord;

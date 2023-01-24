@@ -65,7 +65,7 @@ fn gen_scene() -> Scene {
     ));
     metals.push(Metal::new(Vector3::new(0.7, 0.6, 0.5), 0.0));
 
-    let size = 5;
+    let size = 20;
     for a in -size..size {
         for b in -size..size {
             let mat: f32 = rng.gen();
