@@ -157,54 +157,20 @@ impl App {
 
         // finish frame
         self.ctx.queue.submit([encoder.finish()]);
+        self.ctx.device.poll(wgpu::Maintain::Wait);
         output.present();
 
         if let Some(save_info) = save_info {
-            let buffer_slice = save_info.buffer.slice(..);
-
-            let (tx, rx) = std::sync::mpsc::channel();
-            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                tx.send(result).unwrap();
-            });
-            self.ctx.device.poll(wgpu::Maintain::Wait);
-            let _ = rx.recv().unwrap();
-
-            // let data = buffer_slice.get_mapped_range();
-            let padded_data = buffer_slice.get_mapped_range();
-            let data = padded_data
-                .chunks(save_info.padded as _)
-                .flat_map(|chunk| &chunk[..save_info.unpadded as _])
-                .copied()
-                .collect::<Vec<_>>();
-
-            let mut img = image::Rgba32FImage::from_raw(
-                save_info.tex_width,
-                save_info.tex_height,
-                bytemuck::cast_slice(&data).to_vec(),
-            )
-            .unwrap();
-
-            let samples = self.renderer.samples() as f32;
-            for p in img.pixels_mut() {
-                p[0] /= samples;
-                p[1] /= samples;
-                p[2] /= samples;
-
-                let gamma = 1.0 / 2.2;
-                p[0] = p[0].powf(gamma);
-                p[1] = p[1].powf(gamma);
-                p[2] = p[2].powf(gamma);
-            }
-            let img = image::DynamicImage::ImageRgba32F(img);
-            let img = img.to_rgba8();
-
-            println!("Img size: {}, {}", img.width(), img.height());
+            println!(
+                "Img size: {}, {}",
+                save_info.tex_width(),
+                save_info.tex_height()
+            );
             println!(
                 "Samples: {}",
                 self.renderer.samples() * self.renderer.globals().samples
             );
-
-            img.save("img.png").unwrap();
+            save_info.finish(&self.ctx.device, self.renderer.samples());
         }
     }
 

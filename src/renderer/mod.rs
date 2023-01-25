@@ -386,9 +386,59 @@ fn make_scene_bind_group(
 }
 
 pub struct SaveInfo {
-    pub buffer: wgpu::Buffer,
-    pub padded: u32,
-    pub unpadded: u32,
-    pub tex_width: u32,
-    pub tex_height: u32,
+    buffer: wgpu::Buffer,
+    padded: u32,
+    unpadded: u32,
+    tex_width: u32,
+    tex_height: u32,
+}
+impl SaveInfo {
+    pub fn finish(self, device: &wgpu::Device, samples: i32) {
+        let buffer_slice = self.buffer.slice(..);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            tx.send(result).unwrap();
+        });
+        device.poll(wgpu::Maintain::Wait);
+        let _ = rx.recv().unwrap();
+
+        let padded_data = buffer_slice.get_mapped_range();
+        let data = padded_data
+            .chunks(self.padded as _)
+            .flat_map(|chunk| &chunk[..self.unpadded as _])
+            .copied()
+            .collect::<Vec<_>>();
+
+        let mut img = image::Rgba32FImage::from_raw(
+            self.tex_width,
+            self.tex_height,
+            bytemuck::cast_slice(&data).to_vec(),
+        )
+        .unwrap();
+
+        let gamma = 1.0 / 2.2;
+        let samples = 1.0 / samples as f32;
+        for p in img.pixels_mut() {
+            p[0] *= samples;
+            p[1] *= samples;
+            p[2] *= samples;
+
+            p[0] = p[0].powf(gamma);
+            p[1] = p[1].powf(gamma);
+            p[2] = p[2].powf(gamma);
+        }
+        let img = image::DynamicImage::ImageRgba32F(img);
+        let img = img.to_rgb8();
+
+        img.save("img.png").unwrap();
+    }
+
+    pub fn tex_width(&self) -> u32 {
+        self.tex_width
+    }
+
+    pub fn tex_height(&self) -> u32 {
+        self.tex_height
+    }
 }
