@@ -10,6 +10,16 @@ pub struct CameraSettings {
     /// vertical in degrees
     pub vfov: f32,
 }
+impl Default for CameraSettings {
+    fn default() -> Self {
+        Self {
+            pos: Vector3::new(0.0, 0.0, -3.0),
+            yaw: 0.0,
+            pitch: 0.0,
+            vfov: 60.0,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct CameraConfig {

@@ -2,23 +2,41 @@ use pathtracer::{
     load_ron,
     renderer::{scene::Scene, *},
 };
+use std::io::{stderr, Write};
 
 fn main() {
+    #[cfg(debug_assertions)]
+    simple_logger::init_with_level(log::Level::Warn).unwrap();
+
     let time = std::time::Instant::now();
     let ctx = pollster::block_on(WgpuContext::new());
 
-    let width = 3840;
-    let height = 2160;
+    // 2k
+    let width = 2048;
+    let height = 1080;
+
+    // 4k
+    // let width = 3840;
+    // let height = 2160;
+
+    // 8k
+    // let width = 7680;
+    // let height = 4320;
+
+    // 16k too big for gpu
+    // let width = 15360;
+    // let height = 8640;
 
     let samples = 1000;
 
     // load scene
-    let scene: Scene = load_ron("scene.ron");
+    let scene: Scene = load_ron("scene1.ron").unwrap_or_default();
     // load settings
-    let settings: Settings = load_ron("settings.ron");
+    let settings: Settings = load_ron("settings.ron").unwrap();
 
     let mut renderer = Renderer::new(&ctx.device, scene, settings, width, height);
 
+    let mut lock = stderr().lock();
     for s in 1..=samples {
         let mut encoder = ctx
             .device
@@ -29,14 +47,18 @@ fn main() {
         ctx.queue.submit([encoder.finish()]);
         ctx.device.poll(wgpu::Maintain::Wait);
 
-        print!(
-            "\r{}/{} | {:.1}%                     ",
+        write!(
+            lock,
+            "\r{}/{} | {:.1}% ",
             s,
             samples,
             s as f32 / samples as f32 * 100.0
-        );
+        )
+        .unwrap();
+        stderr().flush().unwrap();
     }
-    println!();
+    drop(lock);
+    eprintln!();
     // save
     let mut encoder = ctx
         .device
@@ -71,7 +93,7 @@ impl WgpuContext {
         // gpu adapter
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: None,
                 force_fallback_adapter: false,
             })

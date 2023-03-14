@@ -113,10 +113,10 @@ struct Sphere {
     mat_index: u32
 }
 fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
-    let pos = ray.pos - sphere.pos;
+    let dir = ray.pos - sphere.pos;
 
-    let half_b = dot(pos, ray.dir);
-    let c = dot(pos, pos) - (sphere.rad * sphere.rad);
+    let half_b = dot(dir, ray.dir);
+    let c = dot(dir, dir) - (sphere.rad * sphere.rad);
 
     let d = half_b*half_b - c;
     if d < 0.0 {
@@ -141,8 +141,8 @@ fn ray_sphere_intersect(sphere: Sphere, ray: Ray, t_min: f32, t_max: f32, hit_re
     (*hit_record).pos = pos;
     (*hit_record).norm = normalize(pos - sphere.pos);
     if back {
-        // (*hit_record).norm = -(*hit_record).norm; 
-        (*hit_record).norm *= -1.0; 
+        (*hit_record).norm = -(*hit_record).norm; 
+        // (*hit_record).norm *= -1.0; 
     }
     (*hit_record).back = back;
 
@@ -206,6 +206,7 @@ fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
     return r0 + (1.0-r0)*pow((1.0 - cosine), 5.0);
 }
 fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRecord>) -> bool {
+    // --- No BVH ---
     // let len = arrayLength(&spheres);
     // var closet_hit: HitRecord; // hit record of the closet object
     // closet_hit.t = t_max; // set closet distance to max distance
@@ -226,6 +227,7 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
     // }
     // return false;
 
+    // --- BVH ---
     var closet_hit: HitRecord; // hit record of the closet object
     closet_hit.t = t_max; // set closet distance to max distance
     var has_hit = false;
@@ -265,9 +267,10 @@ fn closet_hit(ray: Ray, t_min: f32, t_max: f32, hit_record: ptr<function, HitRec
     return false;
 }
 fn miss(dir_y: f32) -> vec3<f32> {
-    // return vec3<f32>(0.0, 0.0, 0.0);
-    // return vec3<f32>(1.0, 1.0, 1.0);
+    // return vec3<f32>(0.0, 0.0, 0.0); // black/night
+    // return vec3<f32>(1.0, 1.0, 1.0); // white
 
+    // day
     let t = (dir_y + 1.0) / 2.0;
     return (1.0 - t) * vec3<f32>(1.0, 1.0, 1.0) + t*vec3<f32>(0.5, 0.7, 1.0);
 }
@@ -297,6 +300,9 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
                 }
                 // lambertian
                 case 1u: {
+                    if hit_record.back {
+                        return vec3<f32>(0.0);
+                    }
                     let material = lambertians[sphere.mat_index];
                     let scattered = normalize(hit_record.norm + rand_in_sphere(seed));
                     ray = ray_new(new_pos, scattered);
@@ -304,6 +310,9 @@ fn trace_path(ray: Ray, seed: ptr<function, u32>) -> vec3<f32> {
                 }
                 // metal 
                 case 2u: {
+                    if hit_record.back {
+                        return vec3<f32>(0.0);
+                    }
                     let material = metals[sphere.mat_index];
                     // let rand_vec = vec3<f32>(
                         // randf_range(seed, -0.5, 0.5),

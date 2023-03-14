@@ -84,9 +84,9 @@ impl App {
             .create_sampler(&wgpu::SamplerDescriptor::default());
 
         // load scene
-        let scene: Scene = load_ron("scene.ron");
+        let scene: Scene = load_ron("scene1.ron").unwrap_or_default();
         // load settings
-        let settings: Settings = load_ron("settings.ron");
+        let settings: Settings = load_ron("settings.ron").unwrap();
 
         let renderer = Renderer::new(&ctx.device, scene, settings, width, height);
 
@@ -106,12 +106,13 @@ impl App {
         }
     }
 
-    fn reload_scene(&mut self) {
-        let scene: Scene = load_ron("scene.ron");
-        self.renderer.reload_scene(&self.ctx.device, scene);
+    fn reload_scene(&mut self, c: char) {
+        if let Some(scene) = load_ron(format!("scene{}.ron", c)) {
+            self.renderer.reload_scene(&self.ctx.device, scene);
+        }
     }
     fn reload_settings(&mut self) {
-        let settings: Settings = load_ron("settings.ron");
+        let settings: Settings = load_ron("settings.ron").unwrap();
         self.renderer.reload_settings(&settings);
     }
 
@@ -285,13 +286,14 @@ impl App {
                 VirtualKeyCode::Z => {
                     self.save_next_frame = true;
                 }
-                VirtualKeyCode::R => {
-                    self.reload_scene();
-                }
                 VirtualKeyCode::F => {
                     self.reload_settings();
                 }
-                _ => {}
+                &c => {
+                    if c >= VirtualKeyCode::Key1 && c <= VirtualKeyCode::Key0 {
+                        self.reload_scene(char::from_digit(c as u32 + 1, 9).unwrap());
+                    }
+                }
             }
         }
     }
