@@ -11,9 +11,13 @@ fn main() {
     let time = std::time::Instant::now();
     let ctx = pollster::block_on(WgpuContext::new());
 
+    // HD
+    let width = 1280;
+    let height = 720;
+
     // 2k
-    let width = 2048;
-    let height = 1080;
+    // let width = 2048;
+    // let height = 1080;
 
     // 4k
     // let width = 3840;
