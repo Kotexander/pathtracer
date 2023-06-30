@@ -2,7 +2,7 @@
 
 My pathtracer using a WGPU.
 
-Works on Linux and Windows. However, so far this doesn't work on Mac.
+Works on Linux and Windows.
 
 ---
 

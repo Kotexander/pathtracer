@@ -92,7 +92,7 @@ pub struct WgpuContext {
 impl WgpuContext {
     pub async fn new() -> Self {
         // wgpu instance
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
 
         // gpu adapter
         let adapter = instance

@@ -15,7 +15,7 @@ impl WgpuContext {
         let width = size.width;
         let height = size.height;
         // wgpu instance
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
 
         // surface
         let surface = unsafe { instance.create_surface(window) };
